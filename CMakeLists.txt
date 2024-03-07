@@ -11,11 +11,28 @@ find_package(stb CONFIG REQUIRED)
 find_package(concurrencpp CONFIG REQUIRED)
 find_package(ut CONFIG REQUIRED)
 
+
+#----------------------------------[ main ]-------------------------------------
 add_executable(main source/main.cpp)
 target_include_directories(main PRIVATE source)
 target_link_libraries(main PRIVATE fmt::fmt stb::stb concurrencpp::concurrencpp)
 
+
+#---------------------------------[ tests ]-------------------------------------
 add_executable(vec_test test/vec_test.cpp)
 target_include_directories(vec_test PRIVATE source)
 target_link_libraries(vec_test PRIVATE fmt::fmt Boost::ut)
+
+enable_testing()
+
+add_test(
+    NAME    vec_test
+    COMMAND $<TARGET_FILE:vec_test>
+)
+
+add_custom_command(
+    TARGET      vec_test
+    POST_BUILD
+    COMMAND     ctest -C $<CONFIGURATION> --output-on-failure
+)
 
