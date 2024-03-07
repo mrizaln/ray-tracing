@@ -1,5 +1,8 @@
 #pragma once
 
+#include <concepts>
+#include <fmt/core.h>
+#include <fmt/format.h>
 #include <fmt/ranges.h>
 
 #include "rtr/concepts.hpp"
@@ -31,9 +34,6 @@ namespace rtr
 
         template <typename T, std::size_t N>
         std::optional<Vec<T, N>> normalized(const Vec<T, N>&);
-
-        template <typename T, std::size_t N>
-        std::string toString(const Vec<T, N>&);
     }
     // forward declarations end
 
@@ -234,6 +234,22 @@ namespace rtr
             return make(make_index_sequence<N>{});
         }
 
+        std::string toString() const
+            requires(fmt::is_formattable<T>::value || std::convertible_to<const T, std::string>)
+        {
+            if constexpr (fmt::is_formattable<T>::value) {
+                return fmt::format("{}", m_data);
+            } else {
+                auto str  = std::string{ "[" };
+                str      += static_cast<std::string>(m_data[0]);
+                for (std::size_t i = 1; i < m_data.size(); ++i) {
+                    str += ", " + static_cast<std::string>(m_data[i]);
+                }
+                str += ']';
+                return str;
+            }
+        }
+
         // getter
         // clang-format off
         T&       x()       requires(N >= 1 && N <= 4) { return m_data[0]; }
@@ -251,7 +267,6 @@ namespace rtr
         friend auto vecfn::lengthSquared<T, N>(const Vec&) -> T;
         friend auto vecfn::length<T, N>(const Vec&) -> T;
         friend auto vecfn::normalized<T, N>(const Vec&) -> std::optional<Vec>;
-        friend auto vecfn::toString<T, N>(const Vec&) -> std::string;
 
     private:
         explicit Vec(std::array<T, N>&& data)
@@ -328,9 +343,10 @@ namespace rtr
         }
 
         template <typename T, std::size_t N = 3>
+            requires(fmt::is_formattable<T>::value || std::convertible_to<const T, std::string>)
         std::string toString(const Vec<T, N>& vec)
         {
-            return fmt::format("{}", vec.m_data);
+            return vec.toString();
         }
 
     }    // namespace vec
