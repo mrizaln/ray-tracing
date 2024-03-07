@@ -30,14 +30,9 @@ namespace rtr
     concept Neg = requires(T1 t1) {
         { -t1 } -> std::same_as<T2>;
     };
-
-    template <typename T1, typename T2 = T1>
-    concept Inv = requires(T1 t1) {
-        { 1 / t1 } -> std::same_as<T2>;
-    };
     // clang-format on
 
     template <typename T>
-    concept Arith = Add<T> && Sub<T> && Mul<T> && Div<T> && Neg<T> && Inv<T>;
+    concept Arith = Add<T> && Sub<T> && Mul<T> && Div<T> && Neg<T>;
 
 }
