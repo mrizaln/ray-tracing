@@ -211,6 +211,21 @@ namespace rtr
             return *this;
         }
 
+        // operations with other type but reversed (subtraction and division are omitted because it doesn't makes sense)
+        template <typename TT>
+            requires Add<T, TT, T>
+        friend Vec operator+(const TT& lhs, const Vec& rhs)
+        {
+            return rhs + lhs;
+        }
+
+        template <typename TT>
+            requires Mul<T, TT, T>
+        friend Vec operator*(const TT& lhs, const Vec& rhs)
+        {
+            return rhs * lhs;
+        }
+
         auto tie() const
         {
             const auto make = [&]<std::size_t... I>(std::index_sequence<I...>) constexpr {
