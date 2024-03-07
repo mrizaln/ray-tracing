@@ -1,6 +1,8 @@
+#include <concepts>
 #include <fmt/core.h>
 #include <boost/ut.hpp>
 
+#include "rtr/concepts.hpp"
 #include "rtr/vec.hpp"
 
 using rtr::Vec;
@@ -98,5 +100,70 @@ int main()
         Vf3 v4{ 2.0f, 3.0f, 4.0f };
         temp = rtr::vecfn::cross(v, v4);
         ut::expect(temp == Vf3{ -1.0f, 2.0f, -1.0f }) << rtr::vecfn::toString(temp);
+    };
+
+    "custom types"_test = [] {
+        struct CustomType
+        {
+            int x1{};
+            int x2{};
+
+            CustomType()                             = default;
+            ~CustomType()                            = default;
+            CustomType(const CustomType&)            = default;
+            CustomType& operator=(const CustomType&) = default;
+
+            CustomType(int x1, int x2)
+                : x1{ x1 }
+                , x2{ x2 }
+            {
+            }
+
+            CustomType(CustomType&& other)
+                : x1{ std::exchange(other.x1, 0) }
+                , x2{ std::exchange(other.x2, 0) }
+            {
+            }
+
+            CustomType& operator=(CustomType&& other)
+            {
+                x1 = std::exchange(other.x1, 0);
+                x2 = std::exchange(other.x2, 0);
+                return *this;
+            }
+
+            CustomType operator+(const CustomType& rhs) const { return { x1 + rhs.x1, x2 + rhs.x2 }; }
+            CustomType operator-(const CustomType& rhs) const { return { x1 - rhs.x1, x2 - rhs.x2 }; }
+            CustomType operator*(const CustomType& rhs) const { return { x1 * rhs.x1, x2 * rhs.x2 }; }
+            CustomType operator/(const CustomType& rhs) const { return { x1 / rhs.x1, x2 / rhs.x2 }; }
+            CustomType operator-() const { return { -x1, -x2 }; }
+
+            auto operator<=>(const CustomType&) const = default;
+
+            // to be able to use rtr::vecfn::toString and or Vec<T, N>::toString
+            // comment out the following line and see the compilation error.
+            operator std::string() const { return fmt::format("{{ x1 = {}, x2 = {} }}", x1, x2); }
+        };
+
+        if constexpr (!std::regular<CustomType> && !rtr::Arith<CustomType>) {
+            ut::expect(false) << "CustomType is not regular or arith";
+        } else {
+            ut::expect(true) << "CustomType is regular and arith";
+
+            using V = Vec<CustomType, 2>;
+            V v1{ CustomType{ 1, 2 }, CustomType{ 3, 4 } };
+
+            // copy
+            V v2 = v1;
+            ut::expect(v1 == v2);
+
+            // move
+            V v3 = std::move(v1);
+            ut::expect(v3 == v2);
+
+            // this one depends on the implementation of the move ctor/assignment of the custom type.
+            // above implementation zeros out the moved from object, so the following should be true.
+            ut::expect(v1 == V{}) << fmt::format("{} != {}", rtr::vecfn::toString(v1), rtr::vecfn::toString(V{}));
+        }
     };
 }
