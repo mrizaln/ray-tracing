@@ -293,13 +293,13 @@ namespace rtr
     };
 
     // aliases
-    template <typename T = float>
+    template <typename T = double>
     using Vec2 = Vec<T, 2>;
 
-    template <typename T = float>
+    template <typename T = double>
     using Vec3 = Vec<T, 3>;
 
-    template <typename T = float>
+    template <typename T = double>
     using Vec4 = Vec<T, 4>;
 
     // deduction guides

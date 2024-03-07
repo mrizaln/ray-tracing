@@ -21,16 +21,16 @@ int main()
     using namespace ut::operators;
 
     "getter"_test = [] {
-        Vec2<> v2{ 1.0f, 2.0f };
+        Vec2<> v2{ 1.0, 2.0 };
         ut::expect(v2.x() == 1_i);
         ut::expect(v2.y() == 2_i);
 
-        Vec3<> v3{ 1.0f, 2.0f, 3.0f };
+        Vec3<> v3{ 1.0, 2.0, 3.0 };
         ut::expect(v3.x() == 1_i);
         ut::expect(v3.y() == 2_i);
         ut::expect(v3.z() == 3_i);
 
-        Vec4<> v4{ 1.0f, 2.0f, 3.0f, 4.0f };
+        Vec4<> v4{ 1.0, 2.0, 3.0, 4.0 };
         ut::expect(v4.x() == 1_i);
         ut::expect(v4.y() == 2_i);
         ut::expect(v4.z() == 3_i);
