@@ -12,6 +12,7 @@
 #include <optional>
 #include <string>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 
 namespace rtr
@@ -44,8 +45,9 @@ namespace rtr
     public:
         Vec() = default;
 
-        Vec(std::same_as<T> auto&&... data)
-            requires(sizeof...(data) == N)
+        template <typename... TT>
+        Vec(TT&&... data)
+            requires(AllOf<T, std::remove_cvref_t<TT>...> && sizeof...(data) == N)
             : m_data{ std::forward<T>(data)... }
         {
         }

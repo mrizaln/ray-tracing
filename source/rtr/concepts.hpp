@@ -35,4 +35,9 @@ namespace rtr
     template <typename T>
     concept Arith = Add<T> && Sub<T> && Mul<T> && Div<T> && Neg<T>;
 
+    template <typename T, typename... Ts>
+    concept AnyOf = (std::same_as<T, Ts> || ...);
+
+    template <typename T, typename... Ts>
+    concept AllOf = (std::same_as<T, Ts> && ...);
 }

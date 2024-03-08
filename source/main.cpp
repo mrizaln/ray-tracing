@@ -1,55 +1,61 @@
 #include "rtr/color.hpp"
-#include "rtr/progress.hpp"
+#include "rtr/ray_tracer.hpp"
 
+#include <filesystem>
 #include <fmt/core.h>
+#include <fstream>
+#include <stdexcept>
+#include <utility>
 
-#include <cstdlib>
-#include <ctime>
-#include <ranges>
-
-namespace rv = std::views;
 using namespace std::chrono_literals;
 
-void generatePpmImage()
+std::string formatName(std::string_view name, std::string_view extension)
 {
-    constexpr int maxColor    = 255;
-    constexpr int imageWidth  = 256;
-    constexpr int imageHeight = 256;
+    const auto* zone = std::chrono::current_zone();
+    auto        time = zone->to_local(std::chrono::system_clock::now());
+    return std::format("{}_{:%F_%H-%M-%OS}.{}", name, time, extension);
+};
 
-    fmt::println("P3");
-    fmt::println("{} {}", imageWidth, imageHeight);
-    fmt::println("{}", maxColor);
+void generatePpmImage(std::span<rtr::Color<double>> pixels, int width, int height, std::filesystem::path outPath)
+{
+    constexpr int maxColor = 255;
 
-    std::size_t      max = imageHeight;
-    rtr::ProgressBar bar{ max, 0 };
+    if (std::filesystem::exists(outPath)) {
+        throw std::runtime_error{ fmt::format("File '{}' already exist", outPath.string()) };
+    }
 
-    bar.start({}, [](auto start, auto end, auto reason) {
-        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-        using R       = rtr::ProgressBar::StopReason;
-        switch (reason) {
-        case R::Stopped: fmt::println(stderr, "Stopped after {}ms", duration.count()); break;
-        case R::Completed: fmt::println(stderr, "Completed in {}ms", duration.count()); break;
-        }
-    });
+    std::ofstream outFile{ outPath };
+    if (!outFile.good()) {
+        throw std::runtime_error{ fmt::format("Problem opening file '{}'", outPath.string()) };
+    }
 
-    for (auto j : rv::iota(0, imageHeight)) {
-        bar.update(static_cast<std::size_t>(j + 1));
+    const auto write = [&outFile]<typename... Ts>(std::format_string<Ts...> fmt, Ts&&... args) {
+        outFile << std::format(fmt, std::forward<Ts>(args)...);
+    };
 
-        for (auto i : rv::iota(0, imageWidth)) {
+    write("P3\n");
+    write("{} {}\n", width, height);
+    write("{}\n", maxColor);
 
-            rtr::Color<double> color{
-                .r = double(i) / (imageWidth - 1),
-                .g = double(j) / (imageHeight - 1),
-                .b = 0.0,
-            };
-
-            auto c = rtr::colorCast<int>(color, 0.0, 1.0, 0, 255);
-            fmt::println("{} {} {}", c.r, c.g, c.b);
-        }
+    for (const auto& color : pixels) {
+        auto c = rtr::colorCast<int>(color, 0.0, 1.0, 0, 255);
+        write("{} {} {}\n", c.x(), c.y(), c.z());
     }
 }
 
-int main()
+int main(int argc, char** argv)
 {
-    generatePpmImage();
+    auto outFile = formatName("out", "ppm");
+    if (argc > 1) {
+        auto newOutFile = argv[1];
+        if (std::filesystem::exists(newOutFile)) {
+            fmt::println("File exist already, will overwrite");
+        }
+        outFile = newOutFile;
+    }
+
+    rtr::RayTracer rayTracer{};
+    auto           image = rayTracer.run();
+
+    generatePpmImage(image.m_pixels, image.m_width, image.m_height, outFile);
 }
