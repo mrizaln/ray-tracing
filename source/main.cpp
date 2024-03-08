@@ -45,10 +45,11 @@ void generatePpmImage(std::span<rtr::Color<double>> pixels, int width, int heigh
 
 int main(int argc, char** argv)
 {
-    auto outFile = formatName("out", "ppm");
+    std::filesystem::path outFile = formatName("out", "ppm");
     if (argc > 1) {
-        auto newOutFile = argv[1];
+        std::filesystem::path newOutFile = argv[1];
         if (std::filesystem::exists(newOutFile)) {
+            std::filesystem::remove(newOutFile);
             fmt::println("File exist already, will overwrite");
         }
         outFile = newOutFile;

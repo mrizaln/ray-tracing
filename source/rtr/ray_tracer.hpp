@@ -110,7 +110,8 @@ namespace rtr
                     auto rayDirection = pixelCenter - m_camera.m_center;
 
                     Ray  ray{ m_camera.m_center, rayDirection };
-                    auto pixelColor = rayColor(ray);
+                    auto pixelColor = hitSphere({ 0.0, 0.0, -1.0 }, 0.5, ray) ? Color<>{ 1.0, 0.0, 0.0 }
+                                                                              : rayColor(ray);
                     pixels.push_back(pixelColor);
                 }
             }
@@ -134,6 +135,17 @@ namespace rtr
 
             // linear blend (lerp)
             return (1.0 - a) * white + a * blue;
+        }
+
+        bool hitSphere(const Vec3<double>& center, double radius, const Ray& ray)
+        {
+            // basically quadration formula
+            auto oc           = ray.origin() - center;
+            auto a            = vecfn::dot(ray.direction(), ray.direction());
+            auto b            = 2.0 * vecfn::dot(oc, ray.direction());
+            auto c            = vecfn::dot(oc, oc) - radius * radius;
+            auto discriminant = b * b - 4 * a * c;
+            return discriminant >= 0;
         }
 
         rtr::ProgressBar m_progressBar;
