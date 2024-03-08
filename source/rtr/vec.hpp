@@ -10,6 +10,7 @@
 #include <array>
 #include <cmath>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <tuple>
 #include <type_traits>
@@ -34,7 +35,7 @@ namespace rtr
         T length(const Vec<T, N>&);
 
         template <typename T, std::size_t N>
-        std::optional<Vec<T, N>> normalized(const Vec<T, N>&);
+        Vec<T, N> normalized(const Vec<T, N>&);
     }
     // forward declarations end
 
@@ -283,7 +284,7 @@ namespace rtr
         friend auto vecfn::dot<T, N>(const Vec<T, N>&, const Vec<T, N>&) -> T;
         friend auto vecfn::lengthSquared<T, N>(const Vec&) -> T;
         friend auto vecfn::length<T, N>(const Vec&) -> T;
-        friend auto vecfn::normalized<T, N>(const Vec&) -> std::optional<Vec>;
+        friend auto vecfn::normalized<T, N>(const Vec&) -> Vec;
 
     private:
         explicit Vec(std::array<T, N>&& data)
@@ -350,11 +351,11 @@ namespace rtr
         }
 
         template <typename T, std::size_t N = 3>
-        std::optional<Vec<T, N>> normalized(const Vec<T, N>& vec)
+        Vec<T, N> normalized(const Vec<T, N>& vec)
         {
             auto l = length(vec);
             if (l == 0) {
-                return std::nullopt;
+                throw std::domain_error{ "Vector has 0 length! Can't normalize a 0 length vector!" };
             }
             return vec / l;
         }

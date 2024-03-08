@@ -6,6 +6,7 @@
 #include "rtr/ray.hpp"
 #include "rtr/vec.hpp"
 
+#include <cmath>
 #include <fmt/core.h>
 
 #include <chrono>
@@ -44,12 +45,45 @@ namespace rtr
         int                        m_height;
     };
 
+    class Sphere
+    {
+    public:
+        Sphere(Vec3<double> center, double radius)
+            : m_center{ std::move(center) }
+            , m_radius{ radius }
+        {
+        }
+
+        std::optional<double> hit(const Ray& ray) const
+        {
+            // basically quadratic formula
+            auto oc     = ray.origin() - m_center;
+            auto a      = vecfn::lengthSquared(ray.direction());
+            auto b_half = vecfn::dot(oc, ray.direction());
+            auto c      = vecfn::lengthSquared(oc) - m_radius * m_radius;
+            auto D      = b_half * b_half - a * c;
+
+            if (D < 0) {
+                return {};
+            }
+            return -(b_half + std::sqrt(D)) / a;
+        }
+
+        Vec3<double> center() const { return m_center; }
+        double       radius() const { return m_radius; }
+
+    private:
+        Vec3<double> m_center;
+        double       m_radius;
+    };
+
     class RayTracer
     {
     public:
         RayTracer()
             : m_progressBar{ 100, 0 }
             , m_aspectRatio{ 16.0 / 9.0 }
+            , m_sphere{ Vec{ 0.0, 0.0, -1.0 }, 0.5 }
         {
             auto width  = 400;
             auto height = int(width / m_aspectRatio);
@@ -110,8 +144,7 @@ namespace rtr
                     auto rayDirection = pixelCenter - m_camera.m_center;
 
                     Ray  ray{ m_camera.m_center, rayDirection };
-                    auto pixelColor = hitSphere({ 0.0, 0.0, -1.0 }, 0.5, ray) ? Color<>{ 1.0, 0.0, 0.0 }
-                                                                              : rayColor(ray);
+                    auto pixelColor = rayColor(ray);
                     pixels.push_back(pixelColor);
                 }
             }
@@ -127,7 +160,12 @@ namespace rtr
     private:
         Color<double> rayColor(const Ray& ray) const
         {
-            auto dir = vecfn::normalized(ray.direction()).value();
+            if (std::optional t = m_sphere.hit(ray); t.has_value()) {
+                auto n = vecfn::normalized(ray.at(*t) - m_sphere.center());
+                return 0.5 * Color<>{ n.x() + 1, n.y() + 1, n.z() + 1 };
+            };
+
+            auto dir = vecfn::normalized(ray.direction());
 
             auto          a = 0.5 * (dir.y() + 1.0);
             const Color<> white{ 1.0, 1.0, 1.0 };
@@ -137,22 +175,14 @@ namespace rtr
             return (1.0 - a) * white + a * blue;
         }
 
-        bool hitSphere(const Vec3<double>& center, double radius, const Ray& ray)
-        {
-            // basically quadration formula
-            auto oc           = ray.origin() - center;
-            auto a            = vecfn::dot(ray.direction(), ray.direction());
-            auto b            = 2.0 * vecfn::dot(oc, ray.direction());
-            auto c            = vecfn::dot(oc, oc) - radius * radius;
-            auto discriminant = b * b - 4 * a * c;
-            return discriminant >= 0;
-        }
-
         rtr::ProgressBar m_progressBar;
 
         double    m_aspectRatio = 16.0 / 9.0;
         Dimension m_dimension;
         Viewport  m_viewport;
         Camera    m_camera;
+
+        // scene
+        Sphere m_sphere;
     };
 }
