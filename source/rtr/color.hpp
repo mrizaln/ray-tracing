@@ -1,6 +1,7 @@
 #pragma once
 
-#include "rtr/vec.hpp"
+#include "rtr/common.hpp"
+
 namespace rtr
 {
 

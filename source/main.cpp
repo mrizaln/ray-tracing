@@ -1,4 +1,5 @@
 #include "rtr/color.hpp"
+#include "rtr/progress.hpp"
 #include "rtr/ray_tracer.hpp"
 
 #include <filesystem>
@@ -33,14 +34,29 @@ void generatePpmImage(std::span<rtr::Color<double>> pixels, int width, int heigh
         outFile << std::format(fmt, std::forward<Ts>(args)...);
     };
 
+    rtr::ProgressBar bar{ static_cast<std::size_t>(height) };
+
+    fmt::println("Writing to file '{}'...", outPath.string());
+    bar.start({}, [](auto start, auto end, auto /* reason */) {
+        auto duration = std::chrono::duration_cast<std::chrono::seconds>(end - start);
+        auto msg      = std::format("Writing completed in {}", duration);
+        fmt::println("{}", msg);
+    });
+
     write("P3\n");
     write("{} {}\n", width, height);
     write("{}\n", maxColor);
 
-    for (const auto& color : pixels) {
+    for (int w = 0; const auto& color : pixels) {
         auto c = rtr::colorCast<int>(color, 0.0, 1.0, 0, 255);
         write("{} {} {}\n", c.x(), c.y(), c.z());
+
+        if (++w % width == 0) {
+            bar.update(static_cast<std::size_t>(w / width));
+        }
     }
+
+    bar.stop(true);
 }
 
 int main(int argc, char** argv)

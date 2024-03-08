@@ -81,7 +81,14 @@ namespace rtr
         }
 
         void update(std::size_t current) { m_current = std::clamp(current, m_min, m_max); }
-        void stop() { m_thread.request_stop(); }
+
+        void stop(bool wait = false)
+        {
+            m_thread.request_stop();
+            if (wait) {
+                m_thread.join();
+            }
+        }
 
     private:
         inline static constexpr std::size_t s_width      = 80;
@@ -91,7 +98,7 @@ namespace rtr
         inline static constexpr char        s_emptyChar  = '-';
         inline static constexpr std::array  s_spinner    = { '/', '-', '\\', '|' };
 
-        inline static constexpr std::chrono::milliseconds s_delay{ 100 };
+        inline static constexpr std::chrono::milliseconds s_delay{ 50 };
 
         std::jthread m_thread;
 
