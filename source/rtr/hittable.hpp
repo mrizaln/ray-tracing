@@ -1,6 +1,7 @@
 #pragma once
 
 #include "rtr/common.hpp"
+#include "rtr/interval.hpp"
 
 #include <optional>
 #include <utility>
@@ -34,7 +35,7 @@ namespace rtr
     public:
         virtual ~Hittable() = default;
 
-        virtual std::optional<HitRecord> hit(const Ray& ray, std::pair<double, double> tRange) const = 0;
+        virtual std::optional<HitRecord> hit(const Ray& ray, Interval tRange) const = 0;
     };
 
 }

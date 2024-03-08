@@ -37,8 +37,9 @@ void generatePpmImage(std::span<rtr::Color<double>> pixels, int width, int heigh
     rtr::ProgressBar bar{ static_cast<std::size_t>(height) };
 
     fmt::println("Writing to file '{}'...", outPath.string());
-    bar.start({}, [](auto start, auto end, auto /* reason */) {
-        auto duration = std::chrono::duration_cast<std::chrono::seconds>(end - start);
+    bar.start({}, [](auto start, auto end, auto /* status */) {
+        using Seconds = std::chrono::duration<double>;
+        auto duration = std::chrono::duration_cast<Seconds>(end - start);
         auto msg      = std::format("Writing completed in {}", duration);
         fmt::println("{}", msg);
     });
@@ -56,7 +57,7 @@ void generatePpmImage(std::span<rtr::Color<double>> pixels, int width, int heigh
         }
     }
 
-    bar.stop(true);
+    bar.stop(true);    // should not be necessary
 }
 
 int main(int argc, char** argv)

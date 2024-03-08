@@ -16,7 +16,7 @@ namespace rtr
         {
         }
 
-        std::optional<HitRecord> hit(const Ray& ray, std::pair<double, double> tRange) const override
+        std::optional<HitRecord> hit(const Ray& ray, Interval tRange) const override
         {
             // basically quadratic formula
             const Vec  oc     = ray.origin() - m_center;
@@ -33,13 +33,12 @@ namespace rtr
             const auto root1  = (-b_half - D_sqrt) / a;
             const auto root2  = (-b_half + D_sqrt) / a;
 
-            const auto inRange = [&tRange](double root) { return tRange.first <= root && root <= tRange.second; };
-            if (!inRange(root1) && !inRange(root2)) {
+            if (!tRange.surrounds(root1) && !tRange.surrounds(root2)) {
                 return {};
             }
 
             auto root = std::min(root1, root2);
-            if (root < tRange.first) {
+            if (root < tRange.min()) {
                 root = std::max(root1, root2);
             }
 

@@ -30,13 +30,13 @@ namespace rtr
 
         void clear() { m_objects.clear(); }
 
-        std::optional<HitRecord> hit(const Ray& ray, std::pair<double, double> tRange) const override
+        std::optional<HitRecord> hit(const Ray& ray, Interval tRange) const override
         {
             std::optional<HitRecord> currentRecord{};
 
-            double tClosest = tRange.second;
+            double tClosest = tRange.max();
             for (const auto& object : m_objects) {
-                if (auto record = object->hit(ray, { tRange.first, tClosest }); record.has_value()) {
+                if (auto record = object->hit(ray, { tRange.min(), tClosest }); record.has_value()) {
                     tClosest      = record->m_t;
                     currentRecord = std::move(record);
                 }

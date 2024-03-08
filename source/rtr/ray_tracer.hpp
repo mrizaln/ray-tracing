@@ -81,8 +81,8 @@ namespace rtr
                 .m_center      = { 0.0, 0.0, 0.0 },
             };
 
-            m_hittables.emplace<Sphere>(Vec{ 0.0, 0.0, -1.0 }, 0.5);
-            m_hittables.emplace<Sphere>(Vec{ 0.0, -100.5, -1.0 }, 100);
+            m_world.emplace<Sphere>(Vec{ 0.0, 0.0, -1.0 }, 0.5);
+            m_world.emplace<Sphere>(Vec{ 0.0, -100.5, -1.0 }, 100);
         }
 
         Image run()
@@ -98,7 +98,8 @@ namespace rtr
 
             fmt::println("Starting render...");
             m_progressBar.start({}, [](auto start, auto end, auto /* status */) {
-                auto duration = std::chrono::duration_cast<std::chrono::seconds>(end - start);
+                using Seconds = std::chrono::duration<double>;
+                auto duration = std::chrono::duration_cast<Seconds>(end - start);
                 auto msg      = std::format("Render completed in {}", duration);
                 fmt::println("{}", msg);
             });
@@ -128,9 +129,10 @@ namespace rtr
     private:
         Color<double> rayColor(const Ray& ray) const
         {
-            if (std::optional record = m_hittables.hit(ray, { 0.0, 10.0 }); record.has_value()) {
-                const auto& n = record->m_normal;
-                return 0.5 * Color<>{ n.x() + 1, n.y() + 1, n.z() + 1 };
+            if (std::optional record = m_world.hit(ray, { 0.0, n::infinity }); record.has_value()) {
+                const auto&   n = record->m_normal;
+                const Color<> offset{ 1.0, 1.0, 1.0 };
+                return 0.5 * (n + offset);
             };
 
             auto dir = vecfn::normalized(ray.direction());
@@ -151,6 +153,6 @@ namespace rtr
         Camera    m_camera;
 
         // scene
-        HittableList m_hittables;
+        HittableList m_world;
     };
 }
