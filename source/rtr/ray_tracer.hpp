@@ -97,14 +97,14 @@ namespace rtr
             pixels.reserve(std::size_t(m_dimension.m_width * m_dimension.m_height));
 
             fmt::println("Starting render...");
-            m_progressBar.start({}, [](auto start, auto end, auto /* reason */) {
+            m_progressBar.start({}, [](auto start, auto end, auto /* status */) {
                 auto duration = std::chrono::duration_cast<std::chrono::seconds>(end - start);
                 auto msg      = std::format("Render completed in {}", duration);
                 fmt::println("{}", msg);
             });
 
             for (auto row : rv::iota(0, m_dimension.m_height)) {
-                auto progress = std::size_t((double)row / (double)m_dimension.m_width) * 100;
+                auto progress = std::size_t((row + 1) / (double)m_dimension.m_height * 100);
                 m_progressBar.update(progress);
 
                 for (auto col : rv::iota(0, m_dimension.m_width)) {
