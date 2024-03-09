@@ -2,6 +2,8 @@
 
 #include "rtr/common.hpp"
 
+#include <algorithm>
+
 namespace rtr
 {
 
@@ -17,8 +19,9 @@ namespace rtr
         double min() const { return m_min; }
         double max() const { return m_max; }
 
-        bool contains(double value) const { return m_min <= value && value <= m_max; }
-        bool surrounds(double value) const { return m_min < value && value < m_max; }
+        bool   contains(double value) const { return m_min <= value && value <= m_max; }
+        bool   surrounds(double value) const { return m_min < value && value < m_max; }
+        double clamp(double value) const { return std::clamp(value, m_min, m_max); }
 
     private:
         double m_min;

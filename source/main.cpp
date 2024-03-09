@@ -1,14 +1,14 @@
 #include "rtr/color.hpp"
+#include "rtr/hittable_list.hpp"
 #include "rtr/progress.hpp"
 #include "rtr/ray_tracer.hpp"
 
-#include <filesystem>
 #include <fmt/core.h>
+
+#include <filesystem>
 #include <fstream>
 #include <stdexcept>
 #include <utility>
-
-using namespace std::chrono_literals;
 
 std::string formatName(std::string_view name, std::string_view extension)
 {
@@ -21,10 +21,6 @@ void generatePpmImage(std::span<rtr::Color<double>> pixels, int width, int heigh
 {
     constexpr int maxColor = 255;
 
-    if (std::filesystem::exists(outPath)) {
-        throw std::runtime_error{ fmt::format("File '{}' already exist", outPath.string()) };
-    }
-
     std::ofstream outFile{ outPath };
     if (!outFile.good()) {
         throw std::runtime_error{ fmt::format("Problem opening file '{}'", outPath.string()) };
@@ -34,7 +30,7 @@ void generatePpmImage(std::span<rtr::Color<double>> pixels, int width, int heigh
         outFile << std::format(fmt, std::forward<Ts>(args)...);
     };
 
-    rtr::ProgressBar bar{ static_cast<std::size_t>(height) };
+    rtr::ProgressBar bar{ height };
 
     fmt::println("Writing to file '{}'...", outPath.string());
     bar.start({}, [](auto start, auto end, auto /* status */) {
@@ -53,7 +49,7 @@ void generatePpmImage(std::span<rtr::Color<double>> pixels, int width, int heigh
         write("{} {} {}\n", c.x(), c.y(), c.z());
 
         if (++w % width == 0) {
-            bar.update(static_cast<std::size_t>(w / width));
+            bar.update(w / width);
         }
     }
 
@@ -72,8 +68,15 @@ int main(int argc, char** argv)
         outFile = newOutFile;
     }
 
-    rtr::RayTracer rayTracer{};
-    auto           image = rayTracer.run();
+    rtr::HittableList world{};
+    world.emplace<rtr::Sphere>(rtr::Vec{ 0.0, 0.0, -1.0 }, 0.5);
+    world.emplace<rtr::Sphere>(rtr::Vec{ 0.0, -100.5, -1.0 }, 100);
+
+    double aspectRatio = 16.0 / 9.0;
+    int    height      = 720;
+
+    rtr::RayTracer rayTracer{ std::move(world), aspectRatio, height };
+    rtr::Image     image = rayTracer.run();
 
     generatePpmImage(image.m_pixels, image.m_width, image.m_height, outFile);
 }

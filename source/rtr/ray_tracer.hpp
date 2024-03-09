@@ -5,6 +5,7 @@
 #include "rtr/hittable_list.hpp"
 #include "rtr/progress.hpp"
 #include "rtr/sphere.hpp"
+#include "rtr/util.hpp"
 
 #include <fmt/core.h>
 
@@ -30,6 +31,8 @@ namespace rtr
         Vec3<double> m_v;
         Vec3<double> m_du;
         Vec3<double> m_dv;
+        Vec3<double> m_upperLeft;
+        Vec3<double> m_pixel00Loc;
     };
 
     struct Camera
@@ -48,12 +51,12 @@ namespace rtr
     class RayTracer
     {
     public:
-        RayTracer()
-            : m_progressBar{ 100, 0 }
-            , m_aspectRatio{ 16.0 / 9.0 }
+        RayTracer(HittableList&& world, double aspectRatio, int height)
+            : m_progressBar{ height, 0 }
+            , m_aspectRatio{ aspectRatio }
+            , m_world{ std::move(world) }
         {
-            auto height = 720;
-            auto width  = int(height * m_aspectRatio);
+            auto width = int(height * m_aspectRatio);
 
             auto actualRatio = double(width) / double(height);
             auto viewHeight  = 2.0;
@@ -61,37 +64,40 @@ namespace rtr
 
             Vec viewport_u{ viewWidth, 0.0, 0.0 };
             Vec viewport_v{ 0.0, -viewHeight, 0.0 };
+            Vec viewport_du = viewport_u / width;
+            Vec viewport_dv = viewport_v / height;
+
+            Vec    camCenter{ 0.0, 0.0, 0.0 };
+            double camFocalLength{ 1.0 };
+
+            Vec viewUpperLeft = camCenter - Vec{ 0.0, 0.0, camFocalLength }    //
+                              - viewport_u / 2 - viewport_v / 2;
+            auto pixel00loc = viewUpperLeft + 0.5 * (viewport_du + viewport_dv);
 
             m_dimension = {
                 .m_width  = width,
                 .m_height = height,
             };
 
-            m_viewport = {
-                .m_width  = viewWidth,
-                .m_height = viewHeight,
-                .m_u      = viewport_u,
-                .m_v      = viewport_v,
-                .m_du     = viewport_u / m_dimension.m_width,
-                .m_dv     = viewport_v / m_dimension.m_height,
-            };
-
             m_camera = {
-                .m_focalLength = 1.0,
-                .m_center      = { 0.0, 0.0, 0.0 },
+                .m_focalLength = camFocalLength,
+                .m_center      = camCenter,
             };
 
-            m_world.emplace<Sphere>(Vec{ 0.0, 0.0, -1.0 }, 0.5);
-            m_world.emplace<Sphere>(Vec{ 0.0, -100.5, -1.0 }, 100);
+            m_viewport = {
+                .m_width      = viewWidth,
+                .m_height     = viewHeight,
+                .m_u          = viewport_u,
+                .m_v          = viewport_v,
+                .m_du         = viewport_du,
+                .m_dv         = viewport_dv,
+                .m_upperLeft  = viewUpperLeft,
+                .m_pixel00Loc = pixel00loc,
+            };
         }
 
         Image run()
         {
-            // figure out location of the upper left pixel.
-            Vec viewport_upper_left = m_camera.m_center - Vec{ 0.0, 0.0, m_camera.m_focalLength }    //
-                                    - m_viewport.m_u / 2 - m_viewport.m_v / 2;
-            auto pixel100_loc = viewport_upper_left + 0.5 * (m_viewport.m_du + m_viewport.m_dv);
-
             // render
             std::vector<Color<double>> pixels;
             pixels.reserve(std::size_t(m_dimension.m_width * m_dimension.m_height));
@@ -105,18 +111,13 @@ namespace rtr
             });
 
             for (auto row : rv::iota(0, m_dimension.m_height)) {
-                auto progress = std::size_t((row + 1) / (double)m_dimension.m_height * 100);
-                m_progressBar.update(progress);
+                m_progressBar.update(row + 1);
 
                 for (auto col : rv::iota(0, m_dimension.m_width)) {
-                    auto pixelCenter  = pixel100_loc + (col * m_viewport.m_du) + (row * m_viewport.m_dv);
-                    auto rayDirection = pixelCenter - m_camera.m_center;
-
-                    Ray  ray{ m_camera.m_center, rayDirection };
-                    auto pixelColor = rayColor(ray);
-                    pixels.push_back(pixelColor);
+                    pixels.push_back(sampleColorAt(col, row));
                 }
             }
+
             m_progressBar.stop(true);
 
             return {
@@ -145,14 +146,39 @@ namespace rtr
             return (1.0 - a) * white + a * blue;
         }
 
+        Color<double> sampleColorAt(int col, int row) const
+        {
+            Color<> cummulativeColor{ 0.0, 0.0, 0.0 };
+            auto    pixelCenter = m_viewport.m_pixel00Loc + (col * m_viewport.m_du) + (row * m_viewport.m_dv);
+
+            for (auto i [[maybe_unused]] : rv::iota(0, static_cast<int>(m_samplesPerPixel))) {
+                auto pixelSample  = pixelCenter + sampleUnitSquare();
+                auto rayDirection = pixelSample - m_camera.m_center;
+
+                Ray ray{ m_camera.m_center, rayDirection };
+                cummulativeColor += rayColor(ray);
+            }
+
+            return cummulativeColor / static_cast<double>(m_samplesPerPixel);
+        }
+
+        Vec3<double> sampleUnitSquare() const
+        {
+            auto px = -0.5 + util::getRandomDouble();
+            auto py = -0.5 + util::getRandomDouble();
+            return (px * m_viewport.m_du) + (py * m_viewport.m_dv);
+        }
+
         rtr::ProgressBar m_progressBar;
 
-        double    m_aspectRatio = 16.0 / 9.0;
+        double    m_aspectRatio;
         Dimension m_dimension;
         Viewport  m_viewport;
         Camera    m_camera;
 
         // scene
         HittableList m_world;
+
+        std::size_t m_samplesPerPixel = 10;
     };
 }

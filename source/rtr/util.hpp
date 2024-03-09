@@ -2,6 +2,9 @@
 
 #include "rtr/common.hpp"
 
+#include <ctime>
+#include <random>
+
 namespace rtr::util
 {
 
@@ -23,6 +26,14 @@ namespace rtr::util
     inline double operator""_deg_to_rad(long double deg)
     {
         return toRadian(static_cast<double>(deg));
+    }
+
+    // canonical: 0 <= x < 1
+    inline double getRandomDouble()
+    {
+        static std::mt19937                   mt{ static_cast<std::mt19937::result_type>(std::time(nullptr)) };
+        static std::uniform_real_distribution dist{ 0.0, 1.0 };
+        return dist(mt);
     }
 
 }

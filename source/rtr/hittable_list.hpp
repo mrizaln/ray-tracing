@@ -2,7 +2,6 @@
 
 #include "rtr/hittable.hpp"
 
-#include <concepts>
 #include <memory>
 #include <optional>
 #include <vector>
@@ -15,7 +14,7 @@ namespace rtr
     public:
         HittableList() = default;
 
-        Hittable& add(std::shared_ptr<Hittable> object)
+        Hittable& add(std::unique_ptr<Hittable> object)
         {
             m_objects.push_back(std::move(object));
             return *m_objects.back();
@@ -24,7 +23,7 @@ namespace rtr
         template <typename T, typename... Args>
         Hittable& emplace(Args&&... args)
         {
-            m_objects.push_back(std::make_shared<T>(std::forward<Args>(args)...));
+            m_objects.push_back(std::make_unique<T>(std::forward<Args>(args)...));
             return *m_objects.back();
         }
 
@@ -46,7 +45,7 @@ namespace rtr
         }
 
     private:
-        std::vector<std::shared_ptr<Hittable>> m_objects;
+        std::vector<std::unique_ptr<Hittable>> m_objects;
     };
 
 }
