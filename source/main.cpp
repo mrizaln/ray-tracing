@@ -2,6 +2,7 @@
 #include "rtr/hittable_list.hpp"
 #include "rtr/progress.hpp"
 #include "rtr/ray_tracer.hpp"
+#include "rtr/sphere.hpp"
 
 #include <fmt/core.h>
 
@@ -30,7 +31,7 @@ void generatePpmImage(std::span<rtr::Color<double>> pixels, int width, int heigh
         outFile << std::format(fmt, std::forward<Ts>(args)...);
     };
 
-    rtr::ProgressBar bar{ height };
+    rtr::ProgressBar bar{ 0, height };
 
     fmt::println("Writing to file '{}'...", outPath.string());
     bar.start({}, [](auto start, auto end, auto /* status */) {

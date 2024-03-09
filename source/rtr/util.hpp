@@ -31,8 +31,8 @@ namespace rtr::util
     // canonical: 0 <= x < 1
     inline double getRandomDouble()
     {
-        static std::mt19937                   mt{ static_cast<std::mt19937::result_type>(std::time(nullptr)) };
-        static std::uniform_real_distribution dist{ 0.0, 1.0 };
+        thread_local static std::mt19937 mt{ static_cast<std::mt19937::result_type>(std::time(nullptr)) };
+        thread_local static std::uniform_real_distribution dist{ 0.0, 1.0 };
         return dist(mt);
     }
 

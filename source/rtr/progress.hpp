@@ -49,7 +49,7 @@ namespace rtr
     private:
         std::vector<T> m_entries;
         std::size_t    m_index;
-        T              m_average;
+        std::atomic<T> m_average;
     };
 
     // FIXME: ETA will be incomprehensible if update is called with the same value multiple times
@@ -89,9 +89,9 @@ namespace rtr
             Stopped
         };
 
-        ProgressBar(int max, int min = 0)
-            : m_max{ max }
-            , m_min{ min }
+        ProgressBar(int min, int max)
+            : m_min{ min }
+            , m_max{ max }
         {
         }
 
@@ -111,28 +111,23 @@ namespace rtr
                     std::this_thread::sleep_for(s_delay);
 
                     print(m_status);
-
-                    if (auto now = Clock::now(); now >= m_deadline.load()) {
-                        break;
-                    }
                 }
+
+                if (st.stop_requested() && m_current < m_max) {
+                    m_status = Status::Stopped;
+                } else {
+                    m_status = Status::Completed;
+                }
+
+                print(m_status);
+                std::putchar('\n');
 
                 if (!onComplete) {
                     return;
                 }
 
                 auto currentTime = Clock::now();
-                if (st.stop_requested() && m_current < m_max) {
-                    m_status = Status::Stopped;
-                    print(m_status);
-                    std::putchar('\n');
-                    onComplete(m_startTime, currentTime, m_status);
-                } else {
-                    m_status = Status::Completed;
-                    print(m_status);
-                    std::putchar('\n');
-                    onComplete(m_startTime, currentTime, m_status);
-                }
+                onComplete(m_startTime, currentTime, m_status);
             } };
         }
 
@@ -142,8 +137,8 @@ namespace rtr
             m_current = std::clamp(current, m_min, m_max);
 
             auto currentTime = Clock::now();
-            auto deltaTime   = currentTime - m_deadline.load() + s_timeout;
-            m_deadline       = currentTime + s_timeout;
+            auto deltaTime   = currentTime - m_lastUpdate;
+            m_lastUpdate     = currentTime;
 
             auto diff        = std::max(0, current - last);
             auto deltaTimeMs = std::chrono::duration_cast<TimeInterval>(deltaTime);
@@ -174,15 +169,19 @@ namespace rtr
             auto filledSize = std::size_t(ratio * width);
             auto emptySize  = width - filledSize;
 
-            using Seconds      = std::chrono::duration<double>;
-            auto remainingTime = std::chrono::duration_cast<Seconds>(calculateRemainingTime());
-            auto eta           = std::format("{}", remainingTime);
+            const std::string additionalInfo = [&] {
+                using Seconds      = std::chrono::duration<double>;
+                auto remainingTime = std::chrono::duration_cast<Seconds>(calculateRemainingTime());
+                return std::format("ETA: {}", remainingTime);
+            }();
 
             switch (status) {
             case Status::Ongoing: {
                 fmt::print(stderr, "\r\033[K");    // carriage return and clear line
                 fmt::print(stderr, "{}{:#>{}}{:->{}}{}", s_startChar, "", filledSize, "", emptySize, s_endChar);
-                fmt::print(stderr, " ({}) {:.2f}% (ETA: {})", s_spinner[std::size_t(m_spinnerIdx)], ratio * 100, eta);
+                fmt::print(
+                    stderr, " ({}) {:.2f}% ({})", s_spinner[std::size_t(m_spinnerIdx)], ratio * 100, additionalInfo
+                );
                 break;
             }
             case Status::Completed: {
@@ -220,19 +219,19 @@ namespace rtr
         inline static constexpr char        s_emptyChar  = '-';
         inline static constexpr std::array  s_spinner    = { '/', '-', '\\', '|' };
 
-        inline static constexpr TimeInterval s_delay{ 50 };
+        inline static constexpr TimeInterval s_delay{ 100 };
         inline static constexpr TimeInterval s_timeout{ 2000 };
 
         std::jthread m_thread;
 
-        int m_max;
         int m_min;
+        int m_max;
 
-        std::atomic<int>               m_current{ 0 };
-        std::atomic<Clock::time_point> m_deadline;
+        std::atomic<int>  m_current{ 0 };
+        Clock::time_point m_lastUpdate;
 
-        std::size_t m_spinnerIdx{ 0 };
-        Status      m_status{ Status::NotStarted };
+        std::size_t m_spinnerIdx = 0;
+        Status      m_status     = Status::NotStarted;
 
         Clock::time_point               m_startTime;
         MovingAverage<UpdateRecord, 20> m_updateRecords;

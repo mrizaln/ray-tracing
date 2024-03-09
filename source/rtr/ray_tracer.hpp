@@ -4,13 +4,11 @@
 #include "rtr/color.hpp"
 #include "rtr/hittable_list.hpp"
 #include "rtr/progress.hpp"
-#include "rtr/sphere.hpp"
 #include "rtr/util.hpp"
 
 #include <fmt/core.h>
 
 #include <chrono>
-#include <memory>
 #include <ranges>
 #include <vector>
 
@@ -52,8 +50,7 @@ namespace rtr
     {
     public:
         RayTracer(HittableList&& world, double aspectRatio, int height)
-            : m_progressBar{ height, 0 }
-            , m_aspectRatio{ aspectRatio }
+            : m_aspectRatio{ aspectRatio }
             , m_world{ std::move(world) }
         {
             auto width = int(height * m_aspectRatio);
@@ -99,26 +96,43 @@ namespace rtr
         Image run()
         {
             // render
-            std::vector<Color<double>> pixels;
-            pixels.reserve(std::size_t(m_dimension.m_width * m_dimension.m_height));
+            std::vector<Color<double>> pixels(std::size_t(m_dimension.m_width * m_dimension.m_height));
 
-            fmt::println("Starting render...");
-            m_progressBar.start({}, [](auto start, auto end, auto /* status */) {
-                using Seconds = std::chrono::duration<double>;
-                auto duration = std::chrono::duration_cast<Seconds>(end - start);
-                auto msg      = std::format("Render completed in {}", duration);
-                fmt::println("{}", msg);
-            });
+            const int concurrencyLevel = (int)std::thread::hardware_concurrency();
+            const int chunkSize        = m_dimension.m_height / concurrencyLevel;
 
-            for (auto row : rv::iota(0, m_dimension.m_height)) {
-                m_progressBar.update(row + 1);
+            fmt::println("concurrency level = {} | chunk size: {}", concurrencyLevel, chunkSize);
 
-                for (auto col : rv::iota(0, m_dimension.m_width)) {
-                    pixels.push_back(sampleColorAt(col, row));
-                }
+            ProgressBar progressBar{ 0, chunkSize };
+            progressBar.start();
+
+            std::vector<std::jthread> threads;
+            threads.reserve((std::size_t)concurrencyLevel);
+
+            for (auto i : rv::iota(0, concurrencyLevel)) {
+                auto chunkBegin = i * chunkSize;
+                auto chunkEnd   = chunkBegin + chunkSize;
+
+                threads.emplace_back([this, chunkBegin, chunkEnd, &pixels] {
+                    auto effChunkEnd = std::min(chunkEnd, m_dimension.m_height);
+
+                    for (auto row : rv::iota(chunkBegin, effChunkEnd)) {
+                        auto rowSize = std::size_t(m_dimension.m_width);
+
+                        for (auto col : rv::iota(0, m_dimension.m_width)) {
+                            auto idx    = (std::size_t)row * rowSize + (std::size_t)col;
+                            pixels[idx] = sampleColorAt(col, (int)row);
+                        }
+                    }
+                });
             }
 
-            m_progressBar.stop(true);
+            for (int count = 1; auto& thread : threads) {
+                thread.join();
+                progressBar.update(count++);
+            }
+
+            progressBar.stop(true);
 
             return {
                 .m_pixels = std::move(pixels),
@@ -168,8 +182,6 @@ namespace rtr
             auto py = -0.5 + util::getRandomDouble();
             return (px * m_viewport.m_du) + (py * m_viewport.m_dv);
         }
-
-        rtr::ProgressBar m_progressBar;
 
         double    m_aspectRatio;
         Dimension m_dimension;
