@@ -93,7 +93,7 @@ namespace rtr
             };
         }
 
-        Image run()
+        Image run(rtr::ProgressBarManager& progressBar)
         {
             // render
             std::vector<Color<double>> pixels(std::size_t(m_dimension.m_width * m_dimension.m_height));
@@ -103,21 +103,20 @@ namespace rtr
 
             fmt::println("concurrency level = {} | chunk size: {}", concurrencyLevel, chunkSize);
 
-            ProgressBar progressBar{ 0, chunkSize };
-            progressBar.start();
-
             std::vector<std::jthread> threads;
             threads.reserve((std::size_t)concurrencyLevel);
 
             for (auto i : rv::iota(0, concurrencyLevel)) {
                 auto chunkBegin = i * chunkSize;
-                auto chunkEnd   = chunkBegin + chunkSize;
+                auto chunkEnd   = std::min(chunkBegin + chunkSize, m_dimension.m_height);
 
-                threads.emplace_back([this, chunkBegin, chunkEnd, &pixels] {
-                    auto effChunkEnd = std::min(chunkEnd, m_dimension.m_height);
+                std::string name = fmt::format("render thread {}", i);
+                progressBar.add(name, chunkBegin, chunkEnd);
 
-                    for (auto row : rv::iota(chunkBegin, effChunkEnd)) {
+                threads.emplace_back([this, chunkBegin, chunkEnd, name, &pixels, &progressBar] {
+                    for (auto row : rv::iota(chunkBegin, chunkEnd)) {
                         auto rowSize = std::size_t(m_dimension.m_width);
+                        progressBar.update(name, row + 1);
 
                         for (auto col : rv::iota(0, m_dimension.m_width)) {
                             auto idx    = (std::size_t)row * rowSize + (std::size_t)col;
@@ -127,12 +126,9 @@ namespace rtr
                 });
             }
 
-            for (int count = 1; auto& thread : threads) {
+            for (auto& thread : threads) {
                 thread.join();
-                progressBar.update(count++);
             }
-
-            progressBar.stop(true);
 
             return {
                 .m_pixels = std::move(pixels),

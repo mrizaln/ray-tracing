@@ -4,6 +4,7 @@
 #include "rtr/ray_tracer.hpp"
 #include "rtr/sphere.hpp"
 
+#include <concurrencpp/runtime/runtime.h>
 #include <fmt/core.h>
 
 #include <filesystem>
@@ -18,7 +19,13 @@ std::string formatName(std::string_view name, std::string_view extension)
     return std::format("{}_{:%F_%H-%M-%OS}.{}", name, time, extension);
 };
 
-void generatePpmImage(std::span<rtr::Color<double>> pixels, int width, int height, std::filesystem::path outPath)
+void generatePpmImage(
+    rtr::ProgressBarManager&      progress,
+    std::span<rtr::Color<double>> pixels,
+    int                           width,
+    int                           height,
+    std::filesystem::path         outPath
+)
 {
     constexpr int maxColor = 255;
 
@@ -31,15 +38,7 @@ void generatePpmImage(std::span<rtr::Color<double>> pixels, int width, int heigh
         outFile << std::format(fmt, std::forward<Ts>(args)...);
     };
 
-    rtr::ProgressBar bar{ 0, height };
-
-    fmt::println("Writing to file '{}'...", outPath.string());
-    bar.start({}, [](auto start, auto end, auto /* status */) {
-        using Seconds = std::chrono::duration<double>;
-        auto duration = std::chrono::duration_cast<Seconds>(end - start);
-        auto msg      = std::format("Writing completed in {}", duration);
-        fmt::println("{}", msg);
-    });
+    progress.add("write", 0, height);
 
     write("P3\n");
     write("{} {}\n", width, height);
@@ -50,11 +49,9 @@ void generatePpmImage(std::span<rtr::Color<double>> pixels, int width, int heigh
         write("{} {} {}\n", c.x(), c.y(), c.z());
 
         if (++w % width == 0) {
-            bar.update(w / width);
+            progress.update("write", w / width);
         }
     }
-
-    bar.stop(true);    // should not be necessary
 }
 
 int main(int argc, char** argv)
@@ -69,6 +66,10 @@ int main(int argc, char** argv)
         outFile = newOutFile;
     }
 
+    concurrencpp::runtime runtime;
+    rtr::ProgressBarManager progressBar{ runtime };
+    progressBar.start(runtime);
+
     rtr::HittableList world{};
     world.emplace<rtr::Sphere>(rtr::Vec{ 0.0, 0.0, -1.0 }, 0.5);
     world.emplace<rtr::Sphere>(rtr::Vec{ 0.0, -100.5, -1.0 }, 100);
@@ -77,7 +78,7 @@ int main(int argc, char** argv)
     int    height      = 720;
 
     rtr::RayTracer rayTracer{ std::move(world), aspectRatio, height };
-    rtr::Image     image = rayTracer.run();
+    rtr::Image     image = rayTracer.run(progressBar);
 
-    generatePpmImage(image.m_pixels, image.m_width, image.m_height, outFile);
+    generatePpmImage(progressBar, image.m_pixels, image.m_width, image.m_height, outFile);
 }

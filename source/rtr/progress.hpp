@@ -1,19 +1,16 @@
 #pragma once
 
+#include "rtr/common.hpp"
 #include "rtr/concepts.hpp"
 
+#include <concurrencpp/concurrencpp.h>
 #include <fmt/core.h>
 
 #include <algorithm>
-#include <atomic>
 #include <array>
 #include <chrono>
-#include <concepts>
 #include <format>
-#include <functional>
-#include <optional>
-#include <stop_token>
-#include <thread>
+#include <mutex>
 #include <vector>
 
 namespace rtr
@@ -49,11 +46,10 @@ namespace rtr
     private:
         std::vector<T> m_entries;
         std::size_t    m_index;
-        std::atomic<T> m_average;
+        T              m_average;
     };
 
-    // FIXME: ETA will be incomprehensible if update is called with the same value multiple times
-    class ProgressBar
+    class ProgressBarEntry
     {
     public:
         using Clock        = std::chrono::steady_clock;
@@ -81,59 +77,21 @@ namespace rtr
             auto operator<=>(const UpdateRecord&) const = default;
         };
 
-        enum class Status
-        {
-            NotStarted,
-            Ongoing,
-            Completed,
-            Stopped
-        };
-
-        ProgressBar(int min, int max)
-            : m_min{ min }
+        ProgressBarEntry(std::string name, int min, int max)
+            : m_name{ std::move(name) }
+            , m_min{ min }
             , m_max{ max }
         {
         }
 
-        // if current is not provided, it will be set to min
-        void start(
-            std::optional<int>                                                   current    = {},
-            std::function<void(TimePoint start, TimePoint end, Status reason)>&& onComplete = {}
-        )
-        {
-            m_current = current ? *current : m_min;
-            m_status  = Status::Ongoing;
-
-            m_thread = std::jthread{ [this, onComplete = std::move(onComplete)](std::stop_token st) mutable {
-                m_startTime = Clock::now();
-
-                while (!st.stop_requested() && m_current <= m_max) {
-                    std::this_thread::sleep_for(s_delay);
-
-                    print(m_status);
-                }
-
-                if (st.stop_requested() && m_current < m_max) {
-                    m_status = Status::Stopped;
-                } else {
-                    m_status = Status::Completed;
-                }
-
-                print(m_status);
-                std::putchar('\n');
-
-                if (!onComplete) {
-                    return;
-                }
-
-                auto currentTime = Clock::now();
-                onComplete(m_startTime, currentTime, m_status);
-            } };
-        }
+        ProgressBarEntry(const ProgressBarEntry&)            = default;
+        ProgressBarEntry& operator=(const ProgressBarEntry&) = default;
+        ProgressBarEntry(ProgressBarEntry&&)                 = default;
+        ProgressBarEntry& operator=(ProgressBarEntry&&)      = default;
 
         void update(int current)
         {
-            auto last = m_current.load();
+            auto last = m_current;
             m_current = std::clamp(current, m_min, m_max);
 
             auto currentTime = Clock::now();
@@ -147,94 +105,135 @@ namespace rtr
                 .m_time = deltaTimeMs,
                 .m_diff = diff,
             });
+
+            m_spinnerIdx = (m_spinnerIdx + 1) % s_spinner.size();
         }
 
-        void stop(bool wait = false)
+        void print() const
         {
-            m_thread.request_stop();
-            if (wait) {
-                m_thread.join();
-            }
-        }
+            constexpr auto width = s_width - 3 - 1 - 1 - 1;    // hard-coded for now
 
-    private:
-        void print(Status status)
-        {
-            constexpr auto        width       = s_width - 3 - 1 - 1 - 1;    // hard-coded for now
-            constexpr std::size_t spinnerSize = s_spinner.size();
-
-            auto ratio   = (float)m_current / float(m_max - m_min);
-            m_spinnerIdx = (m_spinnerIdx + 1) % int(spinnerSize);
+            auto ratio = (float)(m_current - m_min) / float(m_max - m_min);
 
             auto filledSize = std::size_t(ratio * width);
             auto emptySize  = width - filledSize;
 
-            const std::string additionalInfo = [&] {
-                using Seconds      = std::chrono::duration<double>;
-                auto remainingTime = std::chrono::duration_cast<Seconds>(calculateRemainingTime());
-                return std::format("ETA: {}", remainingTime);
-            }();
+            using Seconds      = std::chrono::duration<double>;
+            auto remainingTime = std::chrono::duration_cast<Seconds>(calculateRemainingTime());
+            auto eta           = std::format("ETA: {}", remainingTime);
 
-            switch (status) {
-            case Status::Ongoing: {
-                fmt::print(stderr, "\r\033[K");    // carriage return and clear line
-                fmt::print(stderr, "{}{:#>{}}{:->{}}{}", s_startChar, "", filledSize, "", emptySize, s_endChar);
-                fmt::print(
-                    stderr, " ({}) {:.2f}% ({})", s_spinner[std::size_t(m_spinnerIdx)], ratio * 100, additionalInfo
-                );
-                break;
-            }
-            case Status::Completed: {
-                fmt::print(stderr, "\r\033[K");    // carriage return and clear line
-                fmt::print(stderr, "{}{:#>{}}{:->{}}{}", s_startChar, "", width, "", 0, s_endChar);
-                fmt::print(stderr, " (#) {:.2f}%", 100.0);
-                break;
-            }
-            case Status::Stopped: {
-                fmt::print(stderr, "\r\033[K");    // carriage return and clear line
-                fmt::print(stderr, "{}{:#>{}}{:->{}}{}", s_startChar, "", filledSize, "", emptySize, s_endChar);
-                fmt::print(stderr, " (#) stopped at {:.2f}%", ratio * 100);
-                break;
-            }
-            case Status::NotStarted: [[unlikely]] break;
-            }
+            fmt::print(stderr, "\r\033[2K");    // carriage return and clear line
+            fmt::print(stderr, "{:<{}}: [{:#>{}}{:->{}}]", m_name, width / 4, "", filledSize, "", emptySize);
+            fmt::print(stderr, " ({}) {:.2f}% ({})", s_spinner[m_spinnerIdx], ratio * 100, eta);
+            fmt::print(stderr, "\n");
         }
 
+        const std::string& name() const { return m_name; }
+
+    private:
         TimeInterval calculateRemainingTime() const
         {
-            auto remaining    = (m_max - m_min) - m_current;
+            auto remaining    = m_max - m_current;
             auto [time, diff] = m_updateRecords.getAverage();
             auto speed        = (double)diff / (double)time.count();
-
-            // fmt::println("remaining: {} speed: {}", remaining, speed);
+            if (speed == 0) {
+                return TimeInterval{ 0 };
+            }
 
             auto remainingTime = long((double)remaining / speed);
             return TimeInterval{ remainingTime };
         }
 
-        inline static constexpr std::size_t s_width      = 80;
-        inline static constexpr char        s_startChar  = '[';
-        inline static constexpr char        s_endChar    = ']';
-        inline static constexpr char        s_filledChar = '#';
-        inline static constexpr char        s_emptyChar  = '-';
-        inline static constexpr std::array  s_spinner    = { '/', '-', '\\', '|' };
+        inline static constexpr std::size_t s_width   = 80;
+        inline static constexpr std::array  s_spinner = { '/', '-', '\\', '|' };
 
         inline static constexpr TimeInterval s_delay{ 100 };
         inline static constexpr TimeInterval s_timeout{ 2000 };
 
-        std::jthread m_thread;
+        std::string m_name;
 
-        int m_min;
-        int m_max;
-
-        std::atomic<int>  m_current{ 0 };
+        int               m_min;
+        int               m_max;
+        int               m_current    = 0;
+        std::size_t       m_spinnerIdx = 0;
         Clock::time_point m_lastUpdate;
 
-        std::size_t m_spinnerIdx = 0;
-        Status      m_status     = Status::NotStarted;
-
-        Clock::time_point               m_startTime;
         MovingAverage<UpdateRecord, 20> m_updateRecords;
+    };
+
+    class ProgressBarManager
+    {
+    public:
+        using Executor = concurrencpp::worker_thread_executor;
+
+        ProgressBarManager(concurrencpp::runtime& runtime)
+            : m_executor{ runtime.make_worker_thread_executor() }
+        {
+        }
+
+        ~ProgressBarManager()
+        {
+            fmt::println(stderr, "\033[{}B", m_entries.size());    // move cursor down
+            stop();
+        }
+
+        void add(std::string name, int min, int max)
+        {
+            std::scoped_lock lock{ m_mutex };
+            m_entries.emplace_back(name, min, max);
+        }
+
+        void update(std::string name, int current)
+        {
+            m_executor->post([=, this, name = std::move(name)] {
+                std::scoped_lock lock{ m_mutex };
+                auto             found = std::find_if(m_entries.begin(), m_entries.end(), [&](const auto& entry) {
+                    return entry.name() == name;
+                });
+                if (found == m_entries.end()) {
+                    return;
+                }
+                found->update(current);
+            });
+        }
+
+        void start(concurrencpp::runtime& runtime)
+        {
+            fmt::print(stderr, "\0337");    // DECSC
+            m_timer = runtime.timer_queue()->make_timer(0s, 100ms, m_executor, [this] { printLoop(); });
+        }
+
+        void stop()
+        {
+            m_timer.cancel();
+            m_executor->shutdown();
+        }
+
+    private:
+        void printLoop()
+        {
+            auto entries = [this] {
+                std::scoped_lock lock{ m_mutex };
+                return m_entries;
+            }();
+
+            if (entries.empty()) {
+                fmt::println("No progress bars to print");
+                fmt::print(stderr, "\033[1A");
+                return;
+            } else {
+                for (auto& entry : entries) {
+                    entry.print();
+                }
+            }
+            fmt::print(stderr, "\033[{}A", entries.size());    // move cursor up
+        }
+
+        std::shared_ptr<Executor> m_executor;
+        std::mutex                m_mutex;
+
+        concurrencpp::timer           m_timer;
+        std::vector<ProgressBarEntry> m_entries;
     };
 
 }

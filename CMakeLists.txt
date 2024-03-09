@@ -19,6 +19,8 @@ target_link_libraries(main PRIVATE fmt::fmt stb::stb concurrencpp::concurrencpp)
 
 target_compile_options(main PRIVATE -fsanitize=thread)
 target_link_options(main PRIVATE -fsanitize=thread)
+# target_compile_options(main PRIVATE -fsanitize=address,leak,undefined)
+# target_link_options(main PRIVATE -fsanitize=address,leak,undefined)
 
 
 #---------------------------------[ tests ]-------------------------------------
