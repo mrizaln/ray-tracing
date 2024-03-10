@@ -427,6 +427,17 @@ namespace rtr
             }
         }
 
+        template <typename T = double>
+        Vec<T, 2> randomInUnitDisk()
+        {
+            while (true) {
+                auto point = random<T, 2>(T{ -1 }, T{ 1 });
+                if (lengthSquared(point) < T{ 1 }) {
+                    return point;
+                }
+            }
+        }
+
         template <std::floating_point T = double, std::size_t N = 3>
         bool nearZero(const Vec<T, N> vec)
         {

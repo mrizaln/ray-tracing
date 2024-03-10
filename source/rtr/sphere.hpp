@@ -18,7 +18,7 @@ namespace rtr
 
         void setMaterial(std::unique_ptr<Material> material) { m_material = std::move(material); }
 
-        Hittable::HitResult hit(const Ray& ray, Interval tRange) const override
+        Hittable::HitResult hit(const Ray& ray, Interval<double> tRange) const override
         {
             // basically quadratic formula
             const Vec  oc     = ray.origin() - m_center;

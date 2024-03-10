@@ -8,6 +8,7 @@
 #include "rtr/util.hpp"
 #include "rtr/vec.hpp"
 
+#include <cmath>
 #include <fmt/core.h>
 
 #include <ranges>
@@ -37,8 +38,15 @@ namespace rtr
 
     struct Camera
     {
-        double       m_focalLength;
         Vec3<double> m_center;
+        Vec3<double> m_viewUp;
+        Vec3<double> m_viewRight;
+        Vec3<double> m_viewDir;    // opposite direction of the lookAt
+        Vec3<double> m_defocusDisk_u;
+        Vec3<double> m_defocusDisk_v;
+        double       m_verticalFov;
+        double       m_defocusAngle;
+        double       m_focusDistance;
     };
 
     struct Image
@@ -48,31 +56,55 @@ namespace rtr
         int                        m_height;
     };
 
+    struct TracerParam
+    {
+        double       m_aspectRatio   = 16.0 / 9.0;
+        int          m_height        = 360;
+        int          m_samplingRate  = 100;
+        double       m_fov           = 90.0;
+        double       m_focusDistance = 0.80;
+        double       m_defocusAngle  = 10.0;
+        Vec3<double> m_lookFrom      = { 0.0, 0.0, 0.0 };
+        Vec3<double> m_lookAt        = { 0.0, 0.0, -1.0 };
+    };
+
     class RayTracer
     {
     public:
-        RayTracer(HittableList&& world, double aspectRatio, int height, int samplingRate)
-            : m_aspectRatio{ aspectRatio }
+        RayTracer(HittableList&& world, TracerParam param)
+            : m_aspectRatio{ param.m_aspectRatio }
             , m_world{ std::move(world) }
-            , m_samplesPerPixel{ samplingRate }
+            , m_samplesPerPixel{ param.m_samplingRate }
         {
-            auto width = int(height * m_aspectRatio);
+            Vec worldUp = { 0.0, 1.0, 0.0 };
 
+            Vec    camCenter  = { param.m_lookFrom };
+            double camVertFov = param.m_fov;
+
+            Vec viewDir   = vecfn::normalized(param.m_lookFrom - param.m_lookAt);
+            Vec viewRight = vecfn::normalized(vecfn::cross(worldUp, viewDir));
+            Vec viewUp    = vecfn::cross(viewDir, viewRight);
+
+            auto theta = util::toRadian(camVertFov);
+            auto h     = std::tan(theta / 2.0);
+
+            auto height      = param.m_height;
+            auto width       = int(height * m_aspectRatio);
             auto actualRatio = double(width) / double(height);
-            auto viewHeight  = 2.0;
+            auto viewHeight  = 2.0 * h * param.m_focusDistance;
             auto viewWidth   = viewHeight * actualRatio;
 
-            Vec viewport_u{ viewWidth, 0.0, 0.0 };
-            Vec viewport_v{ 0.0, -viewHeight, 0.0 };
+            Vec viewport_u  = viewWidth * viewRight;
+            Vec viewport_v  = viewHeight * -viewUp;
             Vec viewport_du = viewport_u / width;
             Vec viewport_dv = viewport_v / height;
 
-            Vec    camCenter{ 0.0, 0.0, 0.0 };
-            double camFocalLength{ 1.0 };
+            Vec  viewUpperLeft = camCenter - (param.m_focusDistance * viewDir) - viewport_u / 2 - viewport_v / 2;
+            auto pixel00Loc    = viewUpperLeft + 0.5 * (viewport_du + viewport_dv);
 
-            Vec viewUpperLeft = camCenter - Vec{ 0.0, 0.0, camFocalLength }    //
-                              - viewport_u / 2 - viewport_v / 2;
-            auto pixel00loc = viewUpperLeft + 0.5 * (viewport_du + viewport_dv);
+            auto defocusRadius = param.m_focusDistance * std::tan(util::toRadian(param.m_defocusAngle / 2));
+            auto defocusDisk_u = viewport_u * defocusRadius;
+            auto defocusDisk_v = viewport_v * defocusRadius;
 
             m_dimension = {
                 .m_width  = width,
@@ -80,8 +112,15 @@ namespace rtr
             };
 
             m_camera = {
-                .m_focalLength = camFocalLength,
-                .m_center      = camCenter,
+                .m_center        = camCenter,
+                .m_viewUp        = viewUp,
+                .m_viewRight     = viewRight,
+                .m_viewDir       = viewDir,
+                .m_defocusDisk_u = defocusDisk_u,
+                .m_defocusDisk_v = defocusDisk_v,
+                .m_verticalFov   = camVertFov,
+                .m_defocusAngle  = param.m_defocusAngle,
+                .m_focusDistance = param.m_focusDistance,
             };
 
             m_viewport = {
@@ -92,7 +131,7 @@ namespace rtr
                 .m_du         = viewport_du,
                 .m_dv         = viewport_dv,
                 .m_upperLeft  = viewUpperLeft,
-                .m_pixel00Loc = pixel00loc,
+                .m_pixel00Loc = pixel00Loc,
             };
 
             m_maxDepth = 10;
@@ -129,7 +168,7 @@ namespace rtr
 
                         for (auto col : rv::iota(0, m_dimension.m_width)) {
                             auto idx    = (std::size_t)row * rowSize + (std::size_t)col;
-                            pixels[idx] = sampleColorAt(col, (int)row);
+                            pixels[idx] = colorfn::clamp(sampleColorAt(col, (int)row), { 0.0, 1.0 });
                         }
                     }
                 });
@@ -183,18 +222,17 @@ namespace rtr
 
         Color<double> sampleColorAt(int col, int row) const
         {
-            Color<> cummulativeColor{ 0.0, 0.0, 0.0 };
+            Color<> accumulatedColor{ 0.0, 0.0, 0.0 };
             auto    pixelCenter = m_viewport.m_pixel00Loc + (col * m_viewport.m_du) + (row * m_viewport.m_dv);
 
             for (auto i [[maybe_unused]] : rv::iota(0, m_samplesPerPixel)) {
-                auto pixelSample  = pixelCenter + sampleUnitSquare();
-                auto rayDirection = pixelSample - m_camera.m_center;
-
-                Ray ray{ m_camera.m_center, rayDirection };
-                cummulativeColor += rayColor(ray);
+                auto pixelSample   = pixelCenter + sampleUnitSquare();
+                auto rayOrigin     = m_camera.m_defocusAngle <= 0 ? m_camera.m_center : defocusDiskSample();
+                auto rayDirection  = pixelSample - rayOrigin;
+                accumulatedColor  += rayColor({ rayOrigin, rayDirection });
             }
 
-            return cummulativeColor / static_cast<double>(m_samplesPerPixel);
+            return accumulatedColor / static_cast<double>(m_samplesPerPixel);
         }
 
         Vec3<double> sampleUnitSquare() const
@@ -202,6 +240,12 @@ namespace rtr
             auto px = -0.5 + util::getRandomDouble();
             auto py = -0.5 + util::getRandomDouble();
             return (px * m_viewport.m_du) + (py * m_viewport.m_dv);
+        }
+
+        Vec3<double> defocusDiskSample() const
+        {
+            const auto [x, y] = vecfn::randomInUnitDisk().tie();
+            return m_camera.m_center + (x * m_camera.m_defocusDisk_u) + (y * m_camera.m_defocusDisk_v);
         }
 
         double    m_aspectRatio;

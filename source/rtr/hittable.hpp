@@ -27,7 +27,7 @@ namespace rtr
         Hittable& operator=(const Hittable&) = delete;
         virtual ~Hittable()                  = default;
 
-        virtual HitResult hit(const Ray& ray, Interval tRange) const = 0;
+        virtual HitResult hit(const Ray& ray, Interval<double> tRange) const = 0;
 
         template <std::derived_from<Material> T, typename... Args>
             requires std::constructible_from<T, Args...>
@@ -62,7 +62,7 @@ namespace rtr
 
         void clear() { m_objects.clear(); }
 
-        Hittable::HitResult hit(const Ray& ray, Interval tRange) const override
+        Hittable::HitResult hit(const Ray& ray, Interval<double> tRange) const override
         {
             Hittable::HitResult currentHit{};
 

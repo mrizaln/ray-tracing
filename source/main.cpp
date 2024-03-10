@@ -46,7 +46,7 @@ void generatePpmImage(
     for (int w = 0; const auto& pixel : pixels) {
         auto corrected = rtr::colorfn::correctGamma(pixel);
         auto clamped   = rtr::colorfn::clamp(corrected, { 0.0, 0.999 });
-        auto color     = rtr::colorfn::cast<int>(clamped, 0.0, 1.0, 0, maxColor);
+        auto color     = rtr::colorfn::cast<int>(clamped, { 0.0, 1.0 }, { 0, maxColor });
         write("{} {} {}\n", color.x(), color.y(), color.z());
 
         if (++w % width == 0) {
@@ -85,15 +85,23 @@ int main(int argc, char** argv)
     center   .setMaterial<rtr::Lambertian>(rtr::Color<>{ 0.7, 0.3, 0.3 });
     leftOuter.setMaterial<rtr::Dielectric>(1.5);
     leftInner.setMaterial<rtr::Dielectric>(1.5);
-    right    .setMaterial<rtr::Metal>(rtr::Color<>{ 0.8, 0.6, 0.2 }, 0.1);
+    right    .setMaterial<rtr::Metal>(rtr::Color<>{ 0.2, 0.2, 0.3 }, 0.1);
     // clang-format on
 
-    double aspectRatio  = 16.0 / 9.0;
-    int    height       = 720;
-    int    samplingRate = 100;
-
-    rtr::RayTracer rayTracer{ std::move(world), aspectRatio, height, samplingRate };
-    rtr::Image     image = rayTracer.run(progressBar);
+    rtr::RayTracer rayTracer{
+        std::move(world),
+        {
+            .m_aspectRatio   = 16.0 / 9.0,
+            .m_height        = 720,
+            .m_samplingRate  = 100,
+            .m_fov           = 20.0,
+            .m_focusDistance = 3.4,
+            .m_defocusAngle  = 10.0,
+            .m_lookFrom      = { -2.0, 2.0, 1.0 },
+            .m_lookAt        = { 0.0, 0.0, -1.0 },
+        },
+    };
+    rtr::Image image = rayTracer.run(progressBar);
 
     generatePpmImage(progressBar, image.m_pixels, image.m_width, image.m_height, outFile);
 }
