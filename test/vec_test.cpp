@@ -22,19 +22,19 @@ int main()
 
     "getter"_test = [] {
         Vec2<> v2{ 1.0, 2.0 };
-        ut::expect(v2.x() == 1_i);
-        ut::expect(v2.y() == 2_i);
+        ut::expect(v2.x() == 1.0_d);
+        ut::expect(v2.y() == 2.0_d);
 
         Vec3<> v3{ 1.0, 2.0, 3.0 };
-        ut::expect(v3.x() == 1_i);
-        ut::expect(v3.y() == 2_i);
-        ut::expect(v3.z() == 3_i);
+        ut::expect(v3.x() == 1.0_d);
+        ut::expect(v3.y() == 2.0_d);
+        ut::expect(v3.z() == 3.0_d);
 
         Vec4<> v4{ 1.0, 2.0, 3.0, 4.0 };
-        ut::expect(v4.x() == 1_i);
-        ut::expect(v4.y() == 2_i);
-        ut::expect(v4.z() == 3_i);
-        ut::expect(v4.w() == 4_i);
+        ut::expect(v4.x() == 1.0_d);
+        ut::expect(v4.y() == 2.0_d);
+        ut::expect(v4.z() == 3.0_d);
+        ut::expect(v4.w() == 4.0_d);
 
         using V = Vec<int, 8>;
         V v8{ 1, 2, 3, 4, 5, 6, 7, 8 };
@@ -134,7 +134,7 @@ int main()
             int x1{};
             int x2{};
 
-            // NOTE: regular requirements is that the type should be default constructible, copyable, and movable.
+            // NOTE: regular requires the type to be default constructible, copyable, and movable.
             CustomType()                             = default;
             ~CustomType()                            = default;
             CustomType(const CustomType&)            = default;
@@ -146,6 +146,8 @@ int main()
             {
             }
 
+            // normally you don't want to implement move ctor/assignment by hand but let the compiler do it for you,
+            // this is just for demonstration.
             CustomType(CustomType&& other)
                 : x1{ std::exchange(other.x1, 0) }
                 , x2{ std::exchange(other.x2, 0) }
