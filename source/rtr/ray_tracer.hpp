@@ -106,22 +106,26 @@ namespace rtr
             const int concurrencyLevel = (int)std::thread::hardware_concurrency();
             const int chunkSize        = m_dimension.m_height / concurrencyLevel;
 
-            fmt::println("concurrency level = {} | chunk size: {}", concurrencyLevel, chunkSize);
+            fmt::println("Concurrency level = {} | chunk size: {}", concurrencyLevel, chunkSize);
 
             std::vector<std::jthread> threads;
             threads.reserve((std::size_t)concurrencyLevel);
 
+            // each thread now works on interleaved rows
             for (auto i : rv::iota(0, concurrencyLevel)) {
-                auto chunkBegin = i * chunkSize;
-                auto chunkEnd   = std::min(chunkBegin + chunkSize, m_dimension.m_height);
-
                 std::string name = fmt::format("render thread {}", i);
-                progressBar.add(name, chunkBegin, chunkEnd);
+                auto numSteps = (chunkSize * concurrencyLevel + i < m_dimension.m_height) ? chunkSize + 1 : chunkSize;
+                progressBar.add(name, 0, numSteps);
 
-                threads.emplace_back([this, chunkBegin, chunkEnd, name, &pixels, &progressBar] {
-                    for (auto row : rv::iota(chunkBegin, chunkEnd)) {
+                auto range = [=](int offset, int steps) {
+                    return rv::iota(0, steps)
+                         | rv::transform([=](int i) { return std::make_tuple(i, (i * concurrencyLevel) + offset); });
+                };
+
+                threads.emplace_back([this, &pixels, &progressBar, &range, numSteps, i, name = std::move(name)] {
+                    for (auto [count, row] : range(i, numSteps)) {
                         auto rowSize = std::size_t(m_dimension.m_width);
-                        progressBar.update(name, row + 1);
+                        progressBar.update(name, count + 1);
 
                         for (auto col : rv::iota(0, m_dimension.m_width)) {
                             auto idx    = (std::size_t)row * rowSize + (std::size_t)col;
