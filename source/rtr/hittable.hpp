@@ -1,43 +1,92 @@
 #pragma once
 
-#include "rtr/common.hpp"
 #include "rtr/interval.hpp"
+#include "rtr/material.hpp"
 #include "rtr/ray.hpp"
-#include "rtr/vec.hpp"
+#include "rtr/hit_record.hpp"
 
-#include <optional>
-#include <utility>
+#include <memory>
+#include <variant>
 
 namespace rtr
 {
 
-    struct HitRecord
-    {
-        Vec3<double> m_point;
-        Vec3<double> m_normal;
-        double       m_t;
-        bool         m_frontFace;
-
-        static HitRecord from(const Ray& ray, const Vec3<double>& outNormal, Vec3<double> point, double t)
-        {
-            bool front  = vecfn::dot(ray.direction(), outNormal) < 0;
-            Vec  normal = front ? outNormal : -outNormal;
-
-            return {
-                .m_point     = point,
-                .m_normal    = std::move(normal),
-                .m_t         = t,
-                .m_frontFace = front,
-            };
-        }
-    };
-
     class Hittable
     {
     public:
-        virtual ~Hittable() = default;
+        using HitResult = std::variant<std::monostate, HitRecord, ScatterResult>;
 
-        virtual std::optional<HitRecord> hit(const Ray& ray, Interval tRange) const = 0;
+        Hittable()
+            : m_material{ std::make_unique<Lambertian>(Color<>{ 0.1, 0.1, 0.11 }) }
+        {
+        }
+
+        Hittable(Hittable&&)                 = default;
+        Hittable& operator=(Hittable&&)      = default;
+        Hittable(const Hittable&)            = delete;
+        Hittable& operator=(const Hittable&) = delete;
+        virtual ~Hittable()                  = default;
+
+        virtual HitResult hit(const Ray& ray, Interval tRange) const = 0;
+
+        template <std::derived_from<Material> T, typename... Args>
+        Material& setMaterial(Args&&... args)
+        {
+            m_material = std::make_unique<T>(std::forward<Args>(args)...);
+            return *m_material;
+        }
+
+    protected:
+        std::unique_ptr<Material> m_material = nullptr;
+    };
+
+    class HittableList : public Hittable
+    {
+    public:
+        HittableList() = default;
+
+        Hittable& add(std::unique_ptr<Hittable> object)
+        {
+            m_objects.push_back(std::move(object));
+            return *m_objects.back();
+        }
+
+        template <typename T, typename... Args>
+        Hittable& emplace(Args&&... args)
+        {
+            m_objects.push_back(std::make_unique<T>(std::forward<Args>(args)...));
+            return *m_objects.back();
+        }
+
+        void clear() { m_objects.clear(); }
+
+        Hittable::HitResult hit(const Ray& ray, Interval tRange) const override
+        {
+            Hittable::HitResult currentHit{};
+
+            double tClosest = tRange.max();
+            for (const auto& object : m_objects) {
+                auto hit = object->hit(ray, { tRange.min(), tClosest });
+                std::visit(
+                    [&](auto&& arg) {
+                        using T = std::decay_t<decltype(arg)>;
+                        if constexpr (std::same_as<T, HitRecord>) {
+                            tClosest   = arg.m_t;
+                            currentHit = std::move(arg);
+                        } else if constexpr (std::same_as<T, ScatterResult>) {
+                            tClosest   = arg.m_t;
+                            currentHit = std::move(arg);
+                        }
+                    },
+                    std::move(hit)
+                );
+            }
+
+            return currentHit;
+        }
+
+    private:
+        std::vector<std::unique_ptr<Hittable>> m_objects;
     };
 
 }

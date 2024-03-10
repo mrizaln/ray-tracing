@@ -43,7 +43,8 @@ namespace rtr::util
         return getRandom(min, max);
     }
 
-    inline double linearToGamma(double linear) {
+    inline double linearToGamma(double linear)
+    {
         // inverse of gamma2
         return std::sqrt(linear);
     }

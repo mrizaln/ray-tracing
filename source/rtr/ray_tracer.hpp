@@ -2,7 +2,7 @@
 
 #include "rtr/color.hpp"
 #include "rtr/common.hpp"
-#include "rtr/hittable_list.hpp"
+#include "rtr/hittable.hpp"
 #include "rtr/progress.hpp"
 #include "rtr/ray.hpp"
 #include "rtr/util.hpp"
@@ -10,8 +10,8 @@
 
 #include <fmt/core.h>
 
-#include <chrono>
 #include <ranges>
+#include <variant>
 #include <vector>
 
 namespace rtr
@@ -149,20 +149,33 @@ namespace rtr
                 return { 0.0, 0.0, 0.0 };
             }
 
-            if (std::optional record = m_world.hit(ray, { 0.001, n::infinity }); record.has_value()) {
-                // auto direction = vecfn::randomOnHemisphere(record->m_normal);
-                auto direction = record->m_normal + vecfn::randomUnitVector<double>();
-                return 0.5 * rayColor(Ray{ record->m_point, direction }, depth + 1);
-            };
+            auto hit = m_world.hit(ray, { 0.001, n::infinity });
 
-            auto dir = vecfn::normalized(ray.direction());
+            return std::visit(
+                [&](auto&& arg) -> Color<> {
+                    using T = std::decay_t<decltype(arg)>;
 
-            auto          a = 0.5 * (dir.y() + 1.0);
-            const Color<> white{ 1.0, 1.0, 1.0 };
-            const Color<> blue{ 0.5, 0.7, 1.0 };
+                    if constexpr (std::same_as<T, ScatterResult>) {
+                        // scattered
+                        return arg.m_attenuation * rayColor(arg.m_ray, depth + 1);
+                    } else if constexpr (std::same_as<T, HitRecord>) {
+                        // absorbed
+                        const Color<> offset{ 1.0, 1.0, 1.0 };
+                        return 0.5 * (arg.m_normal + offset);
+                    } else {
+                        // missed, use background color
+                        auto dir = vecfn::normalized(ray.direction());
 
-            // linear blend (lerp)
-            return (1.0 - a) * white + a * blue;
+                        auto          a = 0.5 * (dir.y() + 1.0);
+                        const Color<> white{ 1.0, 1.0, 1.0 };
+                        const Color<> blue{ 0.5, 0.7, 1.0 };
+
+                        // linear blend (lerp)
+                        return (1.0 - a) * white + a * blue;
+                    }
+                },
+                std::move(hit)
+            );
         }
 
         Color<double> sampleColorAt(int col, int row) const

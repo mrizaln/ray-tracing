@@ -3,6 +3,7 @@
 #include "rtr/concepts.hpp"
 #include "rtr/util.hpp"
 
+#include <cstdlib>
 #include <fmt/core.h>
 #include <fmt/format.h>
 #include <fmt/ranges.h>
@@ -361,6 +362,21 @@ namespace rtr
         }
 
         template <typename T, std::size_t N = 3>
+        Vec<T, N> reflect(const Vec<T, N>& unitVec, const Vec<T, N>& normal)
+        {
+            return unitVec - 2 * dot(unitVec, normal) * normal;
+        }
+
+        template <typename T, std::size_t N = 3>
+        Vec<T, N> refract(const Vec<T, N>& unitVec, const Vec<T, N>& normal, double refractionRatio)
+        {
+            auto cosTheta          = std::min(dot(-unitVec, normal), 1.0);
+            auto rOutPerpendicular = refractionRatio * (unitVec + cosTheta * normal);
+            auto rOutParallel      = -std::sqrt(std::abs(1.0 - lengthSquared(rOutPerpendicular))) * normal;
+            return rOutPerpendicular + rOutParallel;
+        }
+
+        template <typename T, std::size_t N = 3>
             requires(fmt::is_formattable<T>::value || std::convertible_to<const T, std::string>)
         std::string toString(const Vec<T, N>& vec)
         {
@@ -383,7 +399,7 @@ namespace rtr
         }
 
         // only makes sense in 3D
-        template <typename T>
+        template <typename T = double>
         Vec<T, 3> randomInUnitSphere()
         {
             while (true) {
@@ -394,13 +410,13 @@ namespace rtr
             }
         }
 
-        template <typename T>
+        template <typename T = double>
         Vec<T, 3> randomUnitVector()
         {
             return normalized(randomInUnitSphere<T>());
         }
 
-        template <typename T>
+        template <typename T = double>
         Vec<T, 3> randomOnHemisphere(const Vec<T, 3>& normal)
         {
             auto vector = randomUnitVector<T>();
@@ -409,6 +425,16 @@ namespace rtr
             } else {
                 return -vector;
             }
+        }
+
+        template <std::floating_point T = double, std::size_t N = 3>
+        bool nearZero(const Vec<T, N> vec)
+        {
+            static constexpr double delta = 1e-8;
+            const auto              make  = [&]<std::size_t... I>(std::index_sequence<I...>) constexpr {
+                return ((std::abs(vec[I]) < delta) && ...);
+            };
+            return make(std::make_index_sequence<N>{});
         }
 
     }    // namespace vec

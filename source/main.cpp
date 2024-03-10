@@ -1,5 +1,4 @@
 #include "rtr/color.hpp"
-#include "rtr/hittable_list.hpp"
 #include "rtr/progress.hpp"
 #include "rtr/ray_tracer.hpp"
 #include "rtr/sphere.hpp"
@@ -74,8 +73,18 @@ int main(int argc, char** argv)
     progressBar.start(runtime);
 
     rtr::HittableList world{};
-    world.emplace<rtr::Sphere>(rtr::Vec{ 0.0, 0.0, -1.0 }, 0.5);
-    world.emplace<rtr::Sphere>(rtr::Vec{ 0.0, -100.5, -1.0 }, 100);
+
+    // clang-format off
+    auto& ground = world.emplace<rtr::Sphere>(rtr::Vec{  0.0, -100.5, -1.0 }, 100);
+    auto& center = world.emplace<rtr::Sphere>(rtr::Vec{  0.0,  0.0,   -1.0 }, 0.5);
+    auto& left   = world.emplace<rtr::Sphere>(rtr::Vec{ -1.0,  0.0,   -1.0 }, 0.5);
+    auto& right  = world.emplace<rtr::Sphere>(rtr::Vec{  1.0,  0.0,   -1.0 }, 0.5);
+
+    ground.setMaterial<rtr::Lambertian>(rtr::Color<>{ 0.8, 0.8, 0.0 });
+    center.setMaterial<rtr::Lambertian>(rtr::Color<>{ 0.7, 0.3, 0.3 });
+    left  .setMaterial<rtr::Metal>(rtr::Color<>{ 0.8, 0.8, 0.8 }, 0.3);
+    right .setMaterial<rtr::Metal>(rtr::Color<>{ 0.8, 0.6, 0.2 }, 1.0);
+    // clang-format on
 
     double aspectRatio  = 16.0 / 9.0;
     int    height       = 720;
