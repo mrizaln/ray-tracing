@@ -50,7 +50,7 @@ namespace rtr
         template <typename... TT>
         Vec(TT&&... data)
             requires(AllOf<T, std::remove_cvref_t<TT>...> && sizeof...(data) == N)
-            : m_data{ std::forward<T>(data)... }
+            : m_data{ std::forward<TT>(data)... }
         {
         }
 

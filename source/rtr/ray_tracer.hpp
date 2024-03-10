@@ -160,8 +160,7 @@ namespace rtr
                         return arg.m_attenuation * rayColor(arg.m_ray, depth + 1);
                     } else if constexpr (std::same_as<T, HitRecord>) {
                         // absorbed
-                        const Color<> offset{ 1.0, 1.0, 1.0 };
-                        return 0.5 * (arg.m_normal + offset);
+                        return Color<double>{ 0.0, 0.0, 0.0 };
                     } else {
                         // missed, use background color
                         auto dir = vecfn::normalized(ray.direction());

@@ -30,6 +30,7 @@ namespace rtr
         virtual HitResult hit(const Ray& ray, Interval tRange) const = 0;
 
         template <std::derived_from<Material> T, typename... Args>
+            requires std::constructible_from<T, Args...>
         Material& setMaterial(Args&&... args)
         {
             m_material = std::make_unique<T>(std::forward<Args>(args)...);
@@ -52,6 +53,7 @@ namespace rtr
         }
 
         template <typename T, typename... Args>
+            requires std::constructible_from<T, Args...>
         Hittable& emplace(Args&&... args)
         {
             m_objects.push_back(std::make_unique<T>(std::forward<Args>(args)...));
