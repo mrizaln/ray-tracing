@@ -29,12 +29,17 @@ namespace rtr::util
         return toRadian(static_cast<double>(deg));
     }
 
+    inline double getRandomCanonical()
+    {
+        thread_local static std::mt19937 mt{ static_cast<std::mt19937::result_type>(std::time(nullptr)) };
+        thread_local static std::uniform_real_distribution<double> dist{ 0.0, 1.0 };
+        return dist(mt);
+    }
+
     template <typename T>
     T getRandom(T min, T max)
     {
-        thread_local static std::mt19937 mt{ static_cast<std::mt19937::result_type>(std::time(nullptr)) };
-        thread_local static std::uniform_real_distribution dist{ min, max };
-        return dist(mt);
+        return min + (max - min) * getRandomCanonical();
     }
 
     // canonical: 0 <= x < 1

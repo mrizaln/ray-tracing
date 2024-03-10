@@ -61,6 +61,7 @@ namespace rtr
         double       m_aspectRatio   = 16.0 / 9.0;
         int          m_height        = 360;
         int          m_samplingRate  = 100;
+        int          m_maxDepth      = 10;
         double       m_fov           = 90.0;
         double       m_focusDistance = 0.80;
         double       m_defocusAngle  = 10.0;
@@ -103,8 +104,8 @@ namespace rtr
             auto pixel00Loc    = viewUpperLeft + 0.5 * (viewport_du + viewport_dv);
 
             auto defocusRadius = param.m_focusDistance * std::tan(util::toRadian(param.m_defocusAngle / 2));
-            auto defocusDisk_u = viewport_u * defocusRadius;
-            auto defocusDisk_v = viewport_v * defocusRadius;
+            auto defocusDisk_u = viewRight * defocusRadius;
+            auto defocusDisk_v = viewUp * defocusRadius;
 
             m_dimension = {
                 .m_width  = width,
@@ -134,7 +135,7 @@ namespace rtr
                 .m_pixel00Loc = pixel00Loc,
             };
 
-            m_maxDepth = 10;
+            m_maxDepth = param.m_maxDepth;
         }
 
         Image run(rtr::ProgressBarManager& progressBar)
@@ -156,14 +157,10 @@ namespace rtr
                 auto numSteps = (chunkSize * concurrencyLevel + i < m_dimension.m_height) ? chunkSize + 1 : chunkSize;
                 progressBar.add(name, 0, numSteps);
 
-                auto range = [=](int offset, int steps) {
-                    return rv::iota(0, steps)
-                         | rv::transform([=](int i) { return std::make_tuple(i, (i * concurrencyLevel) + offset); });
-                };
-
-                threads.emplace_back([this, &pixels, &progressBar, &range, numSteps, i, name = std::move(name)] {
-                    for (auto [count, row] : range(i, numSteps)) {
+                threads.emplace_back([=, this, &pixels, &progressBar, name = std::move(name)] {
+                    for (auto count : rv::iota(0, numSteps)) {
                         auto rowSize = std::size_t(m_dimension.m_width);
+                        auto row     = (count * concurrencyLevel) + i;
                         progressBar.update(name, count + 1);
 
                         for (auto col : rv::iota(0, m_dimension.m_width)) {

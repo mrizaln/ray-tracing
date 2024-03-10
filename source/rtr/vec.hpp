@@ -230,7 +230,7 @@ namespace rtr
             return rhs * lhs;
         }
 
-        auto tie() const
+        auto tie() const&
         {
             const auto make = [&]<std::size_t... I>(std::index_sequence<I...>) constexpr {
                 return std::tie(m_data[I]...);
@@ -238,7 +238,7 @@ namespace rtr
             return make(std::make_index_sequence<N>{});
         }
 
-        auto tie()
+        auto tie() &
         {
             const auto make = [&]<std::size_t... I>(std::index_sequence<I...>) constexpr {
                 return std::tie(m_data[I]...);
@@ -246,7 +246,7 @@ namespace rtr
             return make(std::make_index_sequence<N>{});
         }
 
-        auto unpack() const
+        auto tie() &&
         {
             using namespace std;
             const auto make = [&]<size_t... I>(index_sequence<I...>) constexpr { return make_tuple(m_data[I]...); };
@@ -390,12 +390,6 @@ namespace rtr
                 return Vec<T, N>{ (I, util::getRandom<T>(min, max))... };    // NOLINT
             };
             return make(std::make_index_sequence<N>{});
-        }
-
-        template <std::size_t N = 3>
-        Vec<double, N> random()
-        {
-            return random<double, N>(0.0, 1.0);
         }
 
         // only makes sense in 3D

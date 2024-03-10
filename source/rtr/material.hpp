@@ -60,7 +60,11 @@ namespace rtr
         std::optional<ScatterResult> scatter(const Ray& ray, const HitRecord& record) const override
         {
             auto reflected = vecfn::reflect(vecfn::normalized(ray.direction()), record.m_normal);
-            Ray  scattered{ record.m_point, reflected + m_fuzz * vecfn::randomUnitVector() };
+            Ray  scattered{ record.m_point, reflected + m_fuzz * vecfn::randomInUnitSphere() };
+
+            if (vecfn::dot(scattered.direction(), record.m_normal) <= 0) {
+                return {};
+            }
 
             return ScatterResult{
                 .m_ray         = std::move(scattered),

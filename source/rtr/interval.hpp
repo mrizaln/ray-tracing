@@ -28,7 +28,7 @@ namespace rtr
         bool   surrounds(double value) const { return m_min < value && value < m_max; }
         double clamp(double value) const { return std::clamp(value, m_min, m_max); }
 
-        std::pair<double&, double&> tie() { return { m_min, m_max }; }
+        std::pair<double&, double&> tie() & { return { m_min, m_max }; }
 
     private:
         double m_min;
