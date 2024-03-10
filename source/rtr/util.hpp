@@ -2,6 +2,7 @@
 
 #include "rtr/common.hpp"
 
+#include <cmath>
 #include <ctime>
 #include <random>
 
@@ -28,12 +29,23 @@ namespace rtr::util
         return toRadian(static_cast<double>(deg));
     }
 
-    // canonical: 0 <= x < 1
-    inline double getRandomDouble()
+    template <typename T>
+    T getRandom(T min, T max)
     {
         thread_local static std::mt19937 mt{ static_cast<std::mt19937::result_type>(std::time(nullptr)) };
-        thread_local static std::uniform_real_distribution dist{ 0.0, 1.0 };
+        thread_local static std::uniform_real_distribution dist{ min, max };
         return dist(mt);
+    }
+
+    // canonical: 0 <= x < 1
+    inline double getRandomDouble(double min = 0.0, double max = 1.0)
+    {
+        return getRandom(min, max);
+    }
+
+    inline double linearToGamma(double linear) {
+        // inverse of gamma2
+        return std::sqrt(linear);
     }
 
 }

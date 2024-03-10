@@ -1,15 +1,15 @@
 #pragma once
 
-#include <concepts>
+#include "rtr/concepts.hpp"
+#include "rtr/util.hpp"
+
 #include <fmt/core.h>
 #include <fmt/format.h>
 #include <fmt/ranges.h>
 
-#include "rtr/concepts.hpp"
-
 #include <array>
 #include <cmath>
-#include <optional>
+#include <concepts>
 #include <stdexcept>
 #include <string>
 #include <tuple>
@@ -365,6 +365,50 @@ namespace rtr
         std::string toString(const Vec<T, N>& vec)
         {
             return vec.toString();
+        }
+
+        template <typename T, std::size_t N = 3>
+        Vec<T, N> random(T min, T max)
+        {
+            const auto make = [&]<std::size_t... I>(std::index_sequence<I...>) constexpr {
+                return Vec<T, N>{ (I, util::getRandom<T>(min, max))... };    // NOLINT
+            };
+            return make(std::make_index_sequence<N>{});
+        }
+
+        template <std::size_t N = 3>
+        Vec<double, N> random()
+        {
+            return random<double, N>(0.0, 1.0);
+        }
+
+        // only makes sense in 3D
+        template <typename T>
+        Vec<T, 3> randomInUnitSphere()
+        {
+            while (true) {
+                auto point = random<T, 3>(T{ -1 }, T{ 1 });
+                if (lengthSquared(point) < T{ 1 }) {
+                    return point;
+                }
+            }
+        }
+
+        template <typename T>
+        Vec<T, 3> randomUnitVector()
+        {
+            return normalized(randomInUnitSphere<T>());
+        }
+
+        template <typename T>
+        Vec<T, 3> randomOnHemisphere(const Vec<T, 3>& normal)
+        {
+            auto vector = randomUnitVector<T>();
+            if (dot(vector, normal) > 0.0) {
+                return vector;
+            } else {
+                return -vector;
+            }
         }
 
     }    // namespace vec

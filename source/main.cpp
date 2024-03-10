@@ -44,14 +44,17 @@ void generatePpmImage(
     write("{} {}\n", width, height);
     write("{}\n", maxColor);
 
-    for (int w = 0; const auto& color : pixels) {
-        auto c = rtr::colorCast<int>(color, 0.0, 1.0, 0, 255);
-        write("{} {} {}\n", c.x(), c.y(), c.z());
+    for (int w = 0; const auto& pixel : pixels) {
+        auto corrected = rtr::colorfn::correctGamma(pixel);
+        auto clamped   = rtr::colorfn::clamp(corrected, { 0.0, 0.999 });
+        auto color     = rtr::colorfn::cast<int>(clamped, 0.0, 1.0, 0, maxColor);
+        write("{} {} {}\n", color.x(), color.y(), color.z());
 
         if (++w % width == 0) {
-            progress.update("write", w / width);
+            progress.update("write", w / width + 1);
         }
     }
+    progress.update("write", height);
 }
 
 int main(int argc, char** argv)
@@ -66,7 +69,7 @@ int main(int argc, char** argv)
         outFile = newOutFile;
     }
 
-    concurrencpp::runtime runtime;
+    concurrencpp::runtime   runtime;
     rtr::ProgressBarManager progressBar{ runtime };
     progressBar.start(runtime);
 
@@ -74,10 +77,11 @@ int main(int argc, char** argv)
     world.emplace<rtr::Sphere>(rtr::Vec{ 0.0, 0.0, -1.0 }, 0.5);
     world.emplace<rtr::Sphere>(rtr::Vec{ 0.0, -100.5, -1.0 }, 100);
 
-    double aspectRatio = 16.0 / 9.0;
-    int    height      = 720;
+    double aspectRatio  = 16.0 / 9.0;
+    int    height       = 720;
+    int    samplingRate = 100;
 
-    rtr::RayTracer rayTracer{ std::move(world), aspectRatio, height };
+    rtr::RayTracer rayTracer{ std::move(world), aspectRatio, height, samplingRate };
     rtr::Image     image = rayTracer.run(progressBar);
 
     generatePpmImage(progressBar, image.m_pixels, image.m_width, image.m_height, outFile);

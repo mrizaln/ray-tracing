@@ -2,6 +2,8 @@
 
 #include "rtr/common.hpp"
 #include "rtr/interval.hpp"
+#include "rtr/ray.hpp"
+#include "rtr/vec.hpp"
 
 #include <optional>
 #include <utility>

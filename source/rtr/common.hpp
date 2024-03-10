@@ -1,8 +1,5 @@
 #pragma once
 
-#include "rtr/ray.hpp"
-#include "rtr/vec.hpp"
-
 #include <limits>
 #include <ranges>
 #include <chrono>

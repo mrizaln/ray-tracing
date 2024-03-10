@@ -9,7 +9,6 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
-#include <format>
 #include <mutex>
 #include <vector>
 
@@ -111,21 +110,25 @@ namespace rtr
 
         void print() const
         {
-            constexpr auto width = s_width - 3 - 1 - 1 - 1;    // hard-coded for now
+            constexpr auto width = s_width - 10;    // hard-coded for now
 
-            auto ratio = (float)(m_current - m_min) / float(m_max - m_min);
+            auto ratio      = (float)(m_current - m_min) / float(m_max - m_min);
+            auto percentage = ratio * 100;
 
             auto filledSize = std::size_t(ratio * width);
             auto emptySize  = width - filledSize;
 
-            using Seconds      = std::chrono::duration<double>;
-            auto remainingTime = std::chrono::duration_cast<Seconds>(calculateRemainingTime());
-            auto eta           = std::format("ETA: {}", remainingTime);
+            using Seconds = std::chrono::duration<double>;
+            auto eta      = std::chrono::duration_cast<Seconds>(calculateRemainingTime());
 
             fmt::print(stderr, "\r\033[2K");    // carriage return and clear line
-            fmt::print(stderr, "{:<{}}: [{:#>{}}{:->{}}]", m_name, width / 4, "", filledSize, "", emptySize);
-            fmt::print(stderr, " ({}) {:.2f}% ({})", s_spinner[m_spinnerIdx], ratio * 100, eta);
-            fmt::print(stderr, "\n");
+            fmt::print(stderr, "{0:<{1}.{1}s}: [{2:#>{3}}{4:->{5}}]", m_name, width / 4, "", filledSize, "", emptySize);
+
+            if (percentage != 100) {
+                fmt::print(stderr, " ({0}) {1:.2f}% ({2:.2f}s)\n", s_spinner[m_spinnerIdx], percentage, eta.count());
+            } else {
+                fmt::print(stderr, " done\n");
+            }
         }
 
         const std::string& name() const { return m_name; }
@@ -158,7 +161,7 @@ namespace rtr
         std::size_t       m_spinnerIdx = 0;
         Clock::time_point m_lastUpdate;
 
-        MovingAverage<UpdateRecord, 20> m_updateRecords;
+        MovingAverage<UpdateRecord, 10> m_updateRecords;
     };
 
     class ProgressBarManager

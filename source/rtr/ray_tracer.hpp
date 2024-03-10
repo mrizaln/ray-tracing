@@ -1,10 +1,12 @@
 #pragma once
 
-#include "rtr/common.hpp"
 #include "rtr/color.hpp"
+#include "rtr/common.hpp"
 #include "rtr/hittable_list.hpp"
 #include "rtr/progress.hpp"
+#include "rtr/ray.hpp"
 #include "rtr/util.hpp"
+#include "rtr/vec.hpp"
 
 #include <fmt/core.h>
 
@@ -49,9 +51,10 @@ namespace rtr
     class RayTracer
     {
     public:
-        RayTracer(HittableList&& world, double aspectRatio, int height)
+        RayTracer(HittableList&& world, double aspectRatio, int height, int samplingRate)
             : m_aspectRatio{ aspectRatio }
             , m_world{ std::move(world) }
+            , m_samplesPerPixel{ samplingRate }
         {
             auto width = int(height * m_aspectRatio);
 
@@ -91,6 +94,8 @@ namespace rtr
                 .m_upperLeft  = viewUpperLeft,
                 .m_pixel00Loc = pixel00loc,
             };
+
+            m_maxDepth = 10;
         }
 
         Image run(rtr::ProgressBarManager& progressBar)
@@ -138,12 +143,16 @@ namespace rtr
         }
 
     private:
-        Color<double> rayColor(const Ray& ray) const
+        Color<double> rayColor(const Ray& ray, int depth = 0) const
         {
-            if (std::optional record = m_world.hit(ray, { 0.0, n::infinity }); record.has_value()) {
-                const auto&   n = record->m_normal;
-                const Color<> offset{ 1.0, 1.0, 1.0 };
-                return 0.5 * (n + offset);
+            if (depth >= m_maxDepth) {
+                return { 0.0, 0.0, 0.0 };
+            }
+
+            if (std::optional record = m_world.hit(ray, { 0.001, n::infinity }); record.has_value()) {
+                // auto direction = vecfn::randomOnHemisphere(record->m_normal);
+                auto direction = record->m_normal + vecfn::randomUnitVector<double>();
+                return 0.5 * rayColor(Ray{ record->m_point, direction }, depth + 1);
             };
 
             auto dir = vecfn::normalized(ray.direction());
@@ -161,7 +170,7 @@ namespace rtr
             Color<> cummulativeColor{ 0.0, 0.0, 0.0 };
             auto    pixelCenter = m_viewport.m_pixel00Loc + (col * m_viewport.m_du) + (row * m_viewport.m_dv);
 
-            for (auto i [[maybe_unused]] : rv::iota(0, static_cast<int>(m_samplesPerPixel))) {
+            for (auto i [[maybe_unused]] : rv::iota(0, m_samplesPerPixel)) {
                 auto pixelSample  = pixelCenter + sampleUnitSquare();
                 auto rayDirection = pixelSample - m_camera.m_center;
 
@@ -187,6 +196,7 @@ namespace rtr
         // scene
         HittableList m_world;
 
-        std::size_t m_samplesPerPixel = 10;
+        int m_samplesPerPixel;
+        int m_maxDepth;
     };
 }
