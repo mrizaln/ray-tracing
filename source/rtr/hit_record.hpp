@@ -4,8 +4,6 @@
 #include "rtr/vec.hpp"
 #include "rtr/color.hpp"
 
-#include <optional>
-
 namespace rtr
 {
 
@@ -13,7 +11,6 @@ namespace rtr
     {
         Ray           m_ray;
         Color<double> m_attenuation;
-        double        m_t;
     };
 
     struct HitRecord
@@ -35,6 +32,14 @@ namespace rtr
                 .m_frontFace = front,
             };
         }
+    };
+
+    class Material;
+
+    struct HitResult
+    {
+        HitRecord       m_record;
+        const Material* m_material;
     };
 
 }

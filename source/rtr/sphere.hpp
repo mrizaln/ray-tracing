@@ -18,7 +18,7 @@ namespace rtr
 
         void setMaterial(std::unique_ptr<Material> material) { m_material = std::move(material); }
 
-        Hittable::HitResult hit(const Ray& ray, Interval<double> tRange) const override
+        std::optional<HitResult> hit(const Ray& ray, Interval<double> tRange) const override
         {
             // basically quadratic formula
             const Vec  oc     = ray.origin() - m_center;
@@ -47,17 +47,10 @@ namespace rtr
             const Vec point     = ray.at(root);
             const Vec outNormal = (point - m_center) / m_radius;
 
-            auto hit = HitRecord::from(ray, outNormal, point, root);
-
-            if (!m_material) {
-                return hit;
-            }
-
-            if (auto scatter = m_material->scatter(ray, hit); scatter.has_value()) {
-                return std::move(scatter).value();
-            } else {
-                return hit;
-            }
+            return HitResult{
+                .m_record   = HitRecord::from(ray, outNormal, point, root),
+                .m_material = m_material.get(),
+            };
         }
 
         Vec3<double> center() const { return m_center; }

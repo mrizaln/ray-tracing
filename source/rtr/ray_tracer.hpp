@@ -8,11 +8,10 @@
 #include "rtr/util.hpp"
 #include "rtr/vec.hpp"
 
-#include <cmath>
 #include <fmt/core.h>
 
+#include <cmath>
 #include <ranges>
-#include <variant>
 #include <vector>
 
 namespace rtr
@@ -140,15 +139,13 @@ namespace rtr
 
         Image run(rtr::ProgressBarManager& progressBar)
         {
-            // render
-            std::vector<Color<double>> pixels(std::size_t(m_dimension.m_width * m_dimension.m_height));
-
             const int concurrencyLevel = (int)std::thread::hardware_concurrency();
             const int chunkSize        = m_dimension.m_height / concurrencyLevel;
 
             fmt::println("Concurrency level = {} | chunk size: {}", concurrencyLevel, chunkSize);
 
-            std::vector<std::jthread> threads;
+            std::vector<Color<double>> pixels(std::size_t(m_dimension.m_width * m_dimension.m_height));
+            std::vector<std::jthread>  threads;
             threads.reserve((std::size_t)concurrencyLevel);
 
             // each thread now works on interleaved rows
@@ -159,13 +156,13 @@ namespace rtr
 
                 threads.emplace_back([=, this, &pixels, &progressBar, name = std::move(name)] {
                     for (auto count : rv::iota(0, numSteps)) {
-                        auto rowSize = std::size_t(m_dimension.m_width);
-                        auto row     = (count * concurrencyLevel) + i;
+                        auto row = (count * concurrencyLevel) + i;
                         progressBar.update(name, count + 1);
 
                         for (auto col : rv::iota(0, m_dimension.m_width)) {
-                            auto idx    = (std::size_t)row * rowSize + (std::size_t)col;
-                            pixels[idx] = colorfn::clamp(sampleColorAt(col, (int)row), { 0.0, 1.0 });
+                            auto rowSize = std::size_t(m_dimension.m_width);
+                            auto idx     = (std::size_t)row * rowSize + (std::size_t)col;
+                            pixels[idx]  = colorfn::clamp(sampleColorAt(col, row), { 0.0, 1.0 });
                         }
                     }
                 });
@@ -185,36 +182,34 @@ namespace rtr
     private:
         Color<double> rayColor(const Ray& ray, int depth = 0) const
         {
-            if (depth >= m_maxDepth) {
+            if (depth > m_maxDepth) {
                 return { 0.0, 0.0, 0.0 };
             }
 
-            auto hit = m_world.hit(ray, { 0.001, n::infinity });
+            if (auto hit = m_world.hit(ray, { 0.001, n::infinity }); hit.has_value()) {
+                auto [record, material] = std::move(hit).value();
 
-            return std::visit(
-                [&](auto&& arg) -> Color<> {
-                    using T = std::decay_t<decltype(arg)>;
+                if (!material) {
+                    // no material, use normal as color
+                    Color<> offset{ 1.0, 1.0, 1.0 };
+                    return 0.5 * (record.m_normal + offset);
+                }
 
-                    if constexpr (std::same_as<T, ScatterResult>) {
-                        // scattered
-                        return arg.m_attenuation * rayColor(arg.m_ray, depth + 1);
-                    } else if constexpr (std::same_as<T, HitRecord>) {
-                        // absorbed
-                        return Color<double>{ 0.0, 0.0, 0.0 };
-                    } else {
-                        // missed, use background color
-                        auto dir = vecfn::normalized(ray.direction());
+                if (auto scatter = material->scatter(ray, record); scatter.has_value()) {
+                    auto [newRay, attenuation] = std::move(scatter).value();
+                    return attenuation * rayColor(newRay, depth + 1);
+                }
+            }
 
-                        auto          a = 0.5 * (dir.y() + 1.0);
-                        const Color<> white{ 1.0, 1.0, 1.0 };
-                        const Color<> blue{ 0.5, 0.7, 1.0 };
+            // missed, use background color
+            auto dir = vecfn::normalized(ray.direction());
 
-                        // linear blend (lerp)
-                        return (1.0 - a) * white + a * blue;
-                    }
-                },
-                std::move(hit)
-            );
+            auto          a = 0.5 * (dir.y() + 1.0);
+            const Color<> white{ 1.0, 1.0, 1.0 };
+            const Color<> blue{ 0.5, 0.7, 1.0 };
+
+            // linear blend (lerp)
+            return (1.0 - a) * white + a * blue;
         }
 
         Color<double> sampleColorAt(int col, int row) const

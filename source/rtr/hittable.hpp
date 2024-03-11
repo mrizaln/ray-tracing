@@ -6,7 +6,6 @@
 #include "rtr/hit_record.hpp"
 
 #include <memory>
-#include <variant>
 
 namespace rtr
 {
@@ -14,8 +13,6 @@ namespace rtr
     class Hittable
     {
     public:
-        using HitResult = std::variant<std::monostate, HitRecord, ScatterResult>;
-
         Hittable()
             : m_material{ std::make_unique<Lambertian>(Color<>{ 0.1, 0.1, 0.11 }) }
         {
@@ -27,7 +24,7 @@ namespace rtr
         Hittable& operator=(const Hittable&) = delete;
         virtual ~Hittable()                  = default;
 
-        virtual HitResult hit(const Ray& ray, Interval<double> tRange) const = 0;
+        virtual std::optional<HitResult> hit(const Ray& ray, Interval<double> tRange) const = 0;
 
         template <std::derived_from<Material> T, typename... Args>
             requires std::constructible_from<T, Args...>
@@ -36,6 +33,8 @@ namespace rtr
             m_material = std::make_unique<T>(std::forward<Args>(args)...);
             return *m_material;
         }
+
+        const Material* getMaterial() const { return m_material.get(); }
 
     protected:
         std::unique_ptr<Material> m_material = nullptr;
@@ -62,26 +61,16 @@ namespace rtr
 
         void clear() { m_objects.clear(); }
 
-        Hittable::HitResult hit(const Ray& ray, Interval<double> tRange) const override
+        std::optional<HitResult> hit(const Ray& ray, Interval<double> tRange) const override
         {
-            Hittable::HitResult currentHit{};
+            std::optional<HitResult> currentHit{};
 
             double tClosest = tRange.max();
             for (const auto& object : m_objects) {
-                auto hit = object->hit(ray, { tRange.min(), tClosest });
-                std::visit(
-                    [&](auto&& arg) {
-                        using T = std::decay_t<decltype(arg)>;
-                        if constexpr (std::same_as<T, HitRecord>) {
-                            tClosest   = arg.m_t;
-                            currentHit = std::move(arg);
-                        } else if constexpr (std::same_as<T, ScatterResult>) {
-                            tClosest   = arg.m_t;
-                            currentHit = std::move(arg);
-                        }
-                    },
-                    std::move(hit)
-                );
+                if (auto hit = object->hit(ray, { tRange.min(), tClosest }); hit.has_value()) {
+                    tClosest   = hit->m_record.m_t;
+                    currentHit = std::move(hit);
+                }
             }
 
             return currentHit;

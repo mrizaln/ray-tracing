@@ -121,7 +121,6 @@ namespace rtr
             using Seconds = std::chrono::duration<double>;
             auto eta      = std::chrono::duration_cast<Seconds>(calculateRemainingTime());
 
-            fmt::print(stderr, "\r\033[2K");    // carriage return and clear line
             fmt::print(stderr, "{0:<{1}.{1}s}: [{2:#>{3}}{4:->{5}}]", m_name, width / 4, "", filledSize, "", emptySize);
 
             if (percentage != 100) {
@@ -183,12 +182,12 @@ namespace rtr
         void add(std::string name, int min, int max)
         {
             std::scoped_lock lock{ m_mutex };
-            m_entries.emplace_back(name, min, max);
+            m_entries.emplace_back(std::move(name), min, max);
         }
 
-        void update(std::string name, int current)
+        void update(std::string_view name, int current)
         {
-            m_executor->post([=, this, name = std::move(name)] {
+            m_executor->post([=, this] {
                 std::scoped_lock lock{ m_mutex };
                 auto             found = std::find_if(m_entries.begin(), m_entries.end(), [&](const auto& entry) {
                     return entry.name() == name;
@@ -200,10 +199,10 @@ namespace rtr
             });
         }
 
-        void start(concurrencpp::runtime& runtime)
+        void start(concurrencpp::timer_queue& timerQueue)
         {
             fmt::print(stderr, "\0337");    // DECSC
-            m_timer = runtime.timer_queue()->make_timer(0s, 100ms, m_executor, [this] { printLoop(); });
+            m_timer = timerQueue.make_timer(0s, 100ms, m_executor, [this] { printLoop(); });
         }
 
         void stop()
@@ -225,6 +224,7 @@ namespace rtr
                 fmt::print(stderr, "\033[1A");
                 return;
             } else {
+                fmt::print(stderr, "\r\033[0J");    // erase from cursor until end of screen
                 for (auto& entry : entries) {
                     entry.print();
                 }

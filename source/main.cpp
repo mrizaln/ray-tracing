@@ -113,7 +113,7 @@ int main(int argc, char** argv)
 
     concurrencpp::runtime   runtime;
     rtr::ProgressBarManager progressBar{ runtime };
-    progressBar.start(runtime);
+    progressBar.start(*runtime.timer_queue());
 
     rtr::RayTracer rayTracer{
         createScene(),

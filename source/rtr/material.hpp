@@ -40,7 +40,6 @@ namespace rtr
             return ScatterResult{
                 .m_ray         = { record.m_point, scatterDirection },
                 .m_attenuation = m_albedo,
-                .m_t           = record.m_t,
             };
         }
 
@@ -69,7 +68,6 @@ namespace rtr
             return ScatterResult{
                 .m_ray         = std::move(scattered),
                 .m_attenuation = m_albedo,
-                .m_t           = record.m_t,
             };
         };
 
@@ -105,7 +103,6 @@ namespace rtr
             return ScatterResult{
                 .m_ray         = { record.m_point, scatter },
                 .m_attenuation = { 1.0, 1.0, 1.0 },
-                .m_t           = record.m_t,
             };
         }
 
