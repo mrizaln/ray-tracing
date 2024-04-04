@@ -4,6 +4,7 @@
 #include "rtr/sphere.hpp"
 #include "rtr/util.hpp"
 
+#include <chrono>
 #include <concurrencpp/runtime/runtime.h>
 #include <fmt/core.h>
 
@@ -130,7 +131,14 @@ int main(int argc, char** argv)
         },
     };
 
-    rtr::Image image = rayTracer.run(progressBar);
+    auto       now      = std::chrono::steady_clock::now();
+    rtr::Image image    = rayTracer.run(progressBar);
+    auto       duration = std::chrono::steady_clock::now() - now;
+
+    using Seconds    = std::chrono::duration<double>;
+    auto durationSec = std::chrono::duration_cast<Seconds>(duration);
+
+    fmt::println("RayTracer takes {:.2f}s to render", durationSec.count());
 
     generatePpmImage(image.m_pixels, image.m_width, image.m_height, outFile);
 }
